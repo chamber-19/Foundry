@@ -1,0 +1,176 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "feature-v1",
+  "title": "PR Scoring Feature Vector v1",
+  "description": "Frozen schema for ML pipeline training samples. Every field logged to decision-memory.json must conform to this schema.",
+  "type": "object",
+  "required": [
+    "pr_number",
+    "repo",
+    "title",
+    "author",
+    "timestamp",
+    "additions",
+    "deletions",
+    "file_count",
+    "files",
+    "score",
+    "verdict",
+    "decision",
+    "model",
+    "json_parsed"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "pr_number": {
+      "type": "integer",
+      "description": "GitHub PR number"
+    },
+    "repo": {
+      "type": "string",
+      "description": "Repository short name (e.g. Office)"
+    },
+    "title": {
+      "type": "string",
+      "description": "PR title"
+    },
+    "author": {
+      "type": "string",
+      "description": "GitHub login of the PR author"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Head branch name"
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO 8601 datetime when the PR was created"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601 datetime when this record was written"
+    },
+    "additions": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lines added in the PR"
+    },
+    "deletions": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lines deleted in the PR"
+    },
+    "file_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of files changed"
+    },
+    "files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of changed file paths"
+    },
+    "total_size": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "additions + deletions (computed by preprocessor)"
+    },
+    "has_tests": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "1.0 if the PR touches test files, 0.0 otherwise"
+    },
+    "has_docs": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "1.0 if the PR touches documentation files, 0.0 otherwise"
+    },
+    "test_ratio": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Fraction of changed files that are test files"
+    },
+    "dir_spread": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of distinct top-level directories touched"
+    },
+    "cluster_id": {
+      "oneOf": [
+        { "type": "integer" },
+        { "type": "null" }
+      ],
+      "description": "Cluster assignment from scikit-learn engine (null until populated)"
+    },
+    "cluster_label": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ],
+      "description": "Human-readable cluster label from scikit-learn engine (null until populated)"
+    },
+    "cluster_confidence": {
+      "oneOf": [
+        { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        { "type": "null" }
+      ],
+      "description": "Confidence of cluster assignment from scikit-learn engine (null until populated)"
+    },
+    "embedding_similarity_scores": {
+      "oneOf": [
+        { "type": "array", "items": { "type": "number" } },
+        { "type": "null" }
+      ],
+      "description": "Similarity scores from PyTorch embedding engine (null until populated)"
+    },
+    "plateau_detected": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "null" }
+      ],
+      "description": "Whether TensorFlow forecast engine detected a training plateau (null until populated)"
+    },
+    "forecast_confidence": {
+      "oneOf": [
+        { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        { "type": "null" }
+      ],
+      "description": "Forecast confidence from TensorFlow engine (null until populated)"
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Final LLM score (1-10)"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVE", "REQUEST_CHANGES", "NEEDS_DISCUSSION", "UNKNOWN"],
+      "description": "LLM verdict"
+    },
+    "decision": {
+      "type": "string",
+      "description": "Tier action taken: auto-merge / manual-merge / request-changes / needs-attention / auto-close"
+    },
+    "model": {
+      "type": "string",
+      "description": "LLM model identifier used for scoring"
+    },
+    "json_parsed": {
+      "type": "boolean",
+      "description": "Whether the LLM returned valid parseable JSON"
+    },
+    "concerns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of concerns raised by the LLM reviewer"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary of the PR from the LLM reviewer"
+    }
+  }
+}
