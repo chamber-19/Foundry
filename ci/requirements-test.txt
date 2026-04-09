@@ -1,0 +1,5 @@
+# Python packages required to run the CI test suite.
+# Matches the ML libraries used by scripts/ml/ and scripts/scoring/environment.yml.
+scikit-learn>=1.8
+numpy>=2.4
+pytest

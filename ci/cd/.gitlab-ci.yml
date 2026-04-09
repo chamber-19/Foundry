@@ -1,0 +1,110 @@
+# Foundry CI/CD Pipeline
+# Implements parallel test execution and dependency caching to reduce build times.
+
+stages:
+  - restore
+  - build
+  - test
+
+variables:
+  DOTNET_VERSION: "10.0"
+  PYTHON_VERSION: "3.13"
+  # Disable .NET telemetry and welcome messages in CI
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  # Deterministic NuGet package cache location
+  NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
+  # pip cache dir inside the project so it is covered by GitLab cache paths
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+
+# ─── Cache templates ──────────────────────────────────────────────────────────
+
+.cache-nuget: &cache-nuget
+  cache:
+    key:
+      files:
+        - "**/*.csproj"
+        - Foundry.sln
+    paths:
+      - .nuget/packages/
+    policy: pull
+
+# ─── Restore stage ────────────────────────────────────────────────────────────
+
+nuget-restore:
+  stage: restore
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache:
+    key:
+      files:
+        - "**/*.csproj"
+        - Foundry.sln
+    paths:
+      - .nuget/packages/
+    policy: pull-push
+  script:
+    - dotnet restore Foundry.sln
+  artifacts:
+    paths:
+      - "**/obj/"
+    expire_in: 1 hour
+
+# ─── Build stage ──────────────────────────────────────────────────────────────
+
+dotnet-build:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  needs:
+    - nuget-restore
+  <<: *cache-nuget
+  script:
+    - dotnet build Foundry.sln --no-restore --configuration Release
+  artifacts:
+    paths:
+      - "**/bin/Release/"
+    expire_in: 1 hour
+
+# ─── Test stage (parallel) ────────────────────────────────────────────────────
+
+test:dotnet:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  needs:
+    - dotnet-build
+  <<: *cache-nuget
+  script:
+    - dotnet test Foundry.sln --no-build --configuration Release --verbosity normal
+      --logger "junit;LogFilePath=test-results/dotnet-results.xml"
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/dotnet-results.xml
+    paths:
+      - test-results/
+    expire_in: 7 days
+
+# Python test suite lives in scripts/ml/ (not tests/), matching the project
+# convention where ML scripts are standalone and have their own pytest files.
+# See scripts/ml/test_ml_suite_artifacts.py and copilot-setup-steps.yml.
+test:python:
+  stage: test
+  image: python:3.13-slim
+  needs: []
+  cache:
+    key:
+      files:
+        - ci/requirements-test.txt
+    paths:
+      - .pip-cache/
+    policy: pull-push
+  script:
+    - pip install --cache-dir "$PIP_CACHE_DIR" -r ci/requirements-test.txt
+    - python -m pytest scripts/ml/test_ml_suite_artifacts.py -v
+      --junitxml=test-results/python-results.xml
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/python-results.xml
+    paths:
+      - test-results/
+    expire_in: 7 days
