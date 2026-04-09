@@ -5,10 +5,12 @@ Connects to the Foundry broker API and posts results/alerts to Discord channels.
 Slash commands are registered to a single guild on startup.
 """
 
+import asyncio
 import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 try:
     import discord
@@ -44,6 +46,9 @@ bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 guild = discord.Object(id=int(GUILD_ID))
 http_session: aiohttp.ClientSession | None = None
+
+REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", str(Path(__file__).parent.parent))
+MAX_DISCORD_OUTPUT_LENGTH = 1900
 
 if GUILD_ID == "0":
     logger.warning("No guild_id configured. Set guild_id in bot_config.json or FOUNDRY_BOT_GUILD_ID env var.")
@@ -130,6 +135,69 @@ async def list_jobs(interaction: discord.Interaction):
         await interaction.response.send_message("**Recent Jobs:**\n" + "\n".join(lines))
     except Exception as e:
         await interaction.response.send_message(f"❌ Failed to list jobs: {e}")
+
+
+async def run_script(
+    interaction: discord.Interaction,
+    script_name: str,
+    description: str,
+    script_dir: str = "automation",
+    extra_args: list[str] | None = None,
+):
+    """Run a PowerShell script as an async subprocess with deferred interaction."""
+    await interaction.response.defer()
+    script_path = os.path.join(REPO_ROOT, "scripts", script_dir, script_name)
+    cmd = ["pwsh", "-NoProfile", "-File", script_path] + (extra_args or [])
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            cwd=REPO_ROOT,
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+        output = stdout.decode()[-MAX_DISCORD_OUTPUT_LENGTH:] if stdout else "No output"
+        await interaction.followup.send(f"**{description} complete:**\n```\n{output}\n```")
+    except asyncio.TimeoutError:
+        await interaction.followup.send(f"❌ {description} timed out after 5 minutes")
+    except Exception as e:
+        await interaction.followup.send(f"❌ {description} failed: {e}")
+
+
+@tree.command(name="scan", description="Run issue pipeline — creates issues and assigns to Copilot", guild=guild)
+async def scan(interaction: discord.Interaction):
+    await run_script(interaction, "auto-issue-pipeline.ps1", "Issue scan")
+
+
+@tree.command(name="review", description="Score all open PRs with the scoring engine", guild=guild)
+async def review(interaction: discord.Interaction):
+    await run_script(interaction, "auto-pr-review.ps1", "PR review")
+
+
+@tree.command(name="approve", description="Approve a PR and log the decision", guild=guild)
+@app_commands.describe(pr_ref="PR reference (e.g. Office#27 or Suite#54)")
+async def approve(interaction: discord.Interaction, pr_ref: str):
+    await run_script(interaction, "approve.ps1", "Approve", script_dir="commands", extra_args=[pr_ref])
+
+
+@tree.command(name="reject", description="Reject a PR and log the decision", guild=guild)
+@app_commands.describe(pr_ref="PR reference (e.g. Office#31 or Suite#57)", reason="Reason for rejection")
+async def reject(interaction: discord.Interaction, pr_ref: str, reason: str = "No reason given"):
+    await run_script(interaction, "reject.ps1", "Reject", script_dir="commands", extra_args=[pr_ref, reason])
+
+
+@tree.command(name="commands", description="List all Foundry bot commands", guild=guild)
+async def list_commands(interaction: discord.Interaction):
+    embed = discord.Embed(title="Foundry commands", color=0x3498DB)
+    embed.add_field(name="/health", value="Check broker health", inline=False)
+    embed.add_field(name="/status", value="Get ML pipeline status", inline=False)
+    embed.add_field(name="/run [type]", value="Trigger ML pipeline (pipeline, embeddings, export, index)", inline=False)
+    embed.add_field(name="/jobs", value="List recent jobs", inline=False)
+    embed.add_field(name="/scan", value="Run issue pipeline — creates issues and assigns to Copilot", inline=False)
+    embed.add_field(name="/review", value="Score all open PRs with the scoring engine", inline=False)
+    embed.add_field(name="/approve [pr_ref]", value="Approve a PR and log the decision", inline=False)
+    embed.add_field(name="/reject [pr_ref] [reason]", value="Reject a PR and log the decision", inline=False)
+    embed.add_field(name="/commands", value="List all Foundry bot commands", inline=False)
+    await interaction.response.send_message(embed=embed)
 
 
 if __name__ == "__main__":
