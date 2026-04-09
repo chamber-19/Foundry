@@ -2,12 +2,12 @@
   "suiteRepoPath": "",
   "suiteRuntimeStatusEndpoint": "http://127.0.0.1:5000/api/runtime/status",
   "ollamaEndpoint": "http://127.0.0.1:11434",
-  "mlModel": "qwen3:8b",
-  "enableMLPipeline": false,
-  "mlArtifactExportPath": "",
+  "mlModel": "deepseek-r1:14b",
+  "enableMLPipeline": true,
+  "mlArtifactExportPath": "C:\\FoundryState\\ml-artifacts",
   "jobRetentionDays": 30,
   "knowledgeLibraryPath": "",
-  "stateRootPath": "",
+  "stateRootPath": "C:\\FoundryState",
   "additionalKnowledgePaths": [],
   "discordBotToken": ""
 }
