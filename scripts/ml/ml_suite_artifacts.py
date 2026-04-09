@@ -1,8 +1,8 @@
 """
-Suite integration artifact generator for DailyDesk ML pipeline.
+Suite integration artifact generator for Foundry ML pipeline.
 
 Produces deterministic, versioned artifacts that Suite can consume through its
-existing local-model and runtime infrastructure. These artifacts bridge Office's
+existing local-model and runtime infrastructure. These artifacts bridge Foundry's
 ML-powered learning analytics with Suite's production workflows.
 
 Artifact types:
@@ -63,7 +63,7 @@ def _build_operator_readiness(
         "artifactType": "operator-readiness",
         "version": "1.0.0",
         "generatedAt": _now_iso(),
-        "source": "office-ml-pipeline",
+        "source": "foundry-ml-pipeline",
         "reviewRequired": True,
         "data": {
             "overallReadiness": overall_readiness,
@@ -118,7 +118,7 @@ def _build_knowledge_index(
         "artifactType": "knowledge-index",
         "version": "1.0.0",
         "generatedAt": _now_iso(),
-        "source": "office-ml-pipeline",
+        "source": "foundry-ml-pipeline",
         "reviewRequired": False,
         "data": {
             "totalDocuments": len(index_entries),
@@ -160,7 +160,7 @@ def _build_study_schedule(
         "artifactType": "study-schedule",
         "version": "1.0.0",
         "generatedAt": _now_iso(),
-        "source": "office-ml-pipeline",
+        "source": "foundry-ml-pipeline",
         "reviewRequired": True,
         "data": {
             "schedule": enriched_schedule,
@@ -200,7 +200,7 @@ def _build_watchdog_baseline(
         "artifactType": "watchdog-baseline",
         "version": "1.0.0",
         "generatedAt": _now_iso(),
-        "source": "office-ml-pipeline",
+        "source": "foundry-ml-pipeline",
         "reviewRequired": False,
         "data": {
             "baselineMetrics": baseline_metrics,
@@ -212,17 +212,13 @@ def _build_watchdog_baseline(
 
 
 def _resolve_state_root() -> str:
-    """Resolve the State root path: env var first, then Dropbox default."""
-    env_val = os.environ.get("OFFICE_STATE_ROOT", "")
+    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
     if env_val:
         return env_val
-    return os.path.join(
-        os.path.expanduser("~"),
-        "Dropbox",
-        "SuiteWorkspace",
-        "Office",
-        "State",
-    )
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
 
 
 def _load_scoring_model_metrics() -> dict[str, Any] | None:

@@ -57,6 +57,7 @@ public sealed class FoundryJobStore
             SequenceNumber = Interlocked.Increment(ref _nextSequenceNumber),
             RequestedBy = requestedBy,
             RequestPayload = requestPayload,
+            TraceId = Guid.NewGuid().ToString("N"),
         };
 
         _db.Jobs.Insert(job);

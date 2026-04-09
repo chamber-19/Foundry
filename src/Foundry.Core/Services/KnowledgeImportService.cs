@@ -211,7 +211,7 @@ public sealed class KnowledgeImportService
     {
         var extractionRoot = Path.Combine(
             Path.GetTempPath(),
-            "DailyDesk-OneNote",
+            "Foundry-OneNote",
             Path.GetFileNameWithoutExtension(path),
             Guid.NewGuid().ToString("N")
         );

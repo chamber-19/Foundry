@@ -53,6 +53,9 @@ public sealed class MLAnalyticsService
     {
         if (_onnxEngine?.IsAnalyticsModelAvailable == true)
             return "onnx";
+        // NOTE: Python pytorch embedding path uses untrained random weights.
+        // Production embeddings go through EmbeddingService (Ollama) → VectorStoreService (Qdrant).
+        // Keep Python path as experimental fallback only — do not treat its output as semantic.
         if (IsPythonAvailable())
             return "python";
         return "fallback";

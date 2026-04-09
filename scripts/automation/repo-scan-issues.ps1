@@ -6,7 +6,7 @@ $suggestionsFile = "$HOME\.office-suggestions.json"
 try {
     $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 
-    $officeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Office/issues?state=open&per_page=10" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
+    $officeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Foundry/issues?state=open&per_page=10" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
 
     $context = @"
 Here are the currently open issues:
@@ -24,7 +24,7 @@ You are a technical project manager. Review the open issues above and suggest 1-
 
 For each suggestion, respond ONLY with valid JSON. No markdown, no explanation. Just a JSON array:
 [
-  { "repo": "Office", "title": "issue title here", "body": "description here" }
+  { "repo": "Foundry", "title": "issue title here", "body": "description here" }
 ]
 
 Do NOT suggest issues that already exist. Only suggest high-value work.
@@ -48,7 +48,7 @@ $context
         $suggestions | ConvertTo-Json -Depth 5 | Set-Content $suggestionsFile
 
         $colors = @{
-            "Office" = 16744256
+            "Foundry" = 16744256
         }
 
         $embeds = @()

@@ -1,5 +1,5 @@
 """
-PyTorch-based document embedding engine for DailyDesk.
+PyTorch-based document embedding engine for Foundry.
 
 Generates semantic embeddings for knowledge library documents to enable:
 - Semantic search across imported documents

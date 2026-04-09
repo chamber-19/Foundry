@@ -41,7 +41,7 @@ if (Test-Path $memoryFile) {
     } catch {}
 }
 
-$repos = @("Koraji95-coder/Office")
+$repos = @("Koraji95-coder/Foundry")
 
 $reviewedThisRun = @{}
 
@@ -253,7 +253,7 @@ foreach ($repo in $repos) {
 
             $ragContext = ""
             try {
-                $ragOutput = & python "C:\Users\koraj\OneDrive\Documents\GitHub\Office\scripts\rag\query.py" $pr.title 2>$null
+                $ragOutput = & python "$PSScriptRoot\..\rag\query.py" $pr.title 2>$null
                 $ragContext = $ragOutput | Out-String
                 if ($ragContext.Length -gt 2000) {
                     $ragContext = $ragContext.Substring(0, 2000)

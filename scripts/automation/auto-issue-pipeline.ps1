@@ -22,18 +22,18 @@ $issuesPerCycle = 6
 # Suite excluded while building ML training base
 # Fetch existing issues to avoid duplicates
 try {
-    $officeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Office/issues?state=open&per_page=20&labels=ai-suggested" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
+    $officeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Foundry/issues?state=open&per_page=20&labels=ai-suggested" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
 
-    $allOfficeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Office/issues?state=open&per_page=30" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
+    $allOfficeIssues = (Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Foundry/issues?state=open&per_page=30" -Headers $headers) | ForEach-Object { "- #$($_.number): $($_.title)" }
 
     $officeAiCount = ($officeIssues | Measure-Object).Count
 
     if ($officeAiCount -ge 20) {
-        Write-Host "Office repo at issue cap. Skipping."
+        Write-Host "Foundry repo at issue cap. Skipping."
         exit 0
     }
 
-    $allowOffice = if ($officeAiCount -lt 20) { "You MAY suggest Office issues. ($officeAiCount/20 open)" } else { "Do NOT suggest Office issues -- at cap ($officeAiCount/20)." }
+    $allowOffice = if ($officeAiCount -lt 20) { "You MAY suggest Foundry issues. ($officeAiCount/20 open)" } else { "Do NOT suggest Foundry issues -- at cap ($officeAiCount/20)." }
 } catch {
     Write-Host "Failed to fetch existing issues: $($_.Exception.Message)"
     exit 1
@@ -72,7 +72,7 @@ for ($i = 1; $i -le $issuesPerCycle; $i++) {
 
     $ragContext = ""
     try {
-        $ragContext = python "C:\Users\koraj\OneDrive\Documents\GitHub\Office\scripts\rag\query.py" $ragQuery 2>$null | Out-String
+        $ragContext = python "$PSScriptRoot\..\rag\query.py" $ragQuery 2>$null | Out-String
         if ($ragContext.Length -gt 3000) {
             $ragContext = $ragContext.Substring(0, 3000)
         }
@@ -100,7 +100,7 @@ Rules:
 
 EXISTING OPEN ISSUES (do not duplicate):
 
-OFFICE:
+FOUNDRY:
 $($allOfficeIssues -join "`n")
 $cycleContext
 
@@ -110,7 +110,7 @@ $memoryContext
 $ragContext
 
 Respond ONLY with valid JSON. No markdown, no explanation:
-{ "repo": "Office", "title": "issue title", "body": "2-3 sentence description referencing specific files" }
+{ "repo": "Foundry", "title": "issue title", "body": "2-3 sentence description referencing specific files" }
 "@
 
     $chatBody = @{
@@ -135,8 +135,8 @@ Respond ONLY with valid JSON. No markdown, no explanation:
         }
 
         # Safety net: Suite excluded while building ML training base
-        if ($issue.repo -ne "Office") {
-            Write-Host "Skipping non-Office suggestion ($($issue.repo)). Suite excluded while building ML training base."
+        if ($issue.repo -ne "Foundry") {
+            Write-Host "Skipping non-Foundry suggestion ($($issue.repo)). Suite excluded while building ML training base."
             continue
         }
 

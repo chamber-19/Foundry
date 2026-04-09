@@ -3,7 +3,7 @@ import os
 import time
 
 DB_PATH = os.path.expanduser("~/.office-rag-db")
-REPO_ROOT = os.path.expanduser("~/OneDrive/Documents/GitHub")
+REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", os.path.expanduser("~/OneDrive/Documents/GitHub"))
 EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".py", ".ps1", ".json", ".md", ".yml", ".yaml", ".css", ".html", ".sh"}
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "venv"}
 MAX_FILE_SIZE = 50_000
@@ -45,7 +45,7 @@ def index_repos():
     all_docs = []
     all_metas = []
 
-    for repo in ["Office"]:  # Suite excluded while building ML training base — will re-add with separate config
+    for repo in ["Foundry"]:  # Suite excluded while building ML training base — will re-add with separate config
         repo_path = os.path.join(REPO_ROOT, repo)
         if not os.path.exists(repo_path):
             print(f"  Skipping {repo} - not found")
