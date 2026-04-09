@@ -43,10 +43,17 @@ intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 guild = discord.Object(id=int(GUILD_ID))
+http_session: aiohttp.ClientSession | None = None
+
+if GUILD_ID == "0":
+    logger.warning("No guild_id configured. Set guild_id in bot_config.json or FOUNDRY_BOT_GUILD_ID env var.")
 
 
 @bot.event
 async def on_ready():
+    global http_session
+    if http_session is None or http_session.closed:
+        http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
     await tree.sync(guild=guild)
     logger.info("Foundry bot connected as %s — slash commands synced", bot.user)
 
@@ -54,9 +61,8 @@ async def on_ready():
 @tree.command(name="health", description="Check Foundry broker health", guild=guild)
 async def health(interaction: discord.Interaction):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{BROKER_URL}/health", timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
+        async with http_session.get(f"{BROKER_URL}/health") as resp:
+            data = await resp.json()
         await interaction.response.send_message(f"**Foundry Health**: {data.get('status', 'unknown')}")
     except Exception as e:
         await interaction.response.send_message(f"❌ Health check failed: {e}")
@@ -65,9 +71,8 @@ async def health(interaction: discord.Interaction):
 @tree.command(name="status", description="Get Foundry pipeline status", guild=guild)
 async def status(interaction: discord.Interaction):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{BROKER_URL}/api/state", timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
+        async with http_session.get(f"{BROKER_URL}/api/state") as resp:
+            data = await resp.json()
         ml = data.get("ml", {})
         await interaction.response.send_message(
             f"**ML Pipeline**: {'Enabled' if ml.get('enabled') else 'Disabled'}\n"
@@ -104,9 +109,8 @@ async def run_pipeline(interaction: discord.Interaction, pipeline_type: app_comm
         return
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{BROKER_URL}{endpoint}", timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
+        async with http_session.post(f"{BROKER_URL}{endpoint}") as resp:
+            data = await resp.json()
         job_id = data.get("jobId", "N/A")
         await interaction.response.send_message(f"✅ Job queued: `{job_id}` (type: {selected})")
     except Exception as e:
@@ -116,9 +120,8 @@ async def run_pipeline(interaction: discord.Interaction, pipeline_type: app_comm
 @tree.command(name="jobs", description="List recent jobs", guild=guild)
 async def list_jobs(interaction: discord.Interaction):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{BROKER_URL}/api/jobs", timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
+        async with http_session.get(f"{BROKER_URL}/api/jobs") as resp:
+            data = await resp.json()
         jobs = data.get("jobs", [])[:5]
         if not jobs:
             await interaction.response.send_message("No recent jobs.")
