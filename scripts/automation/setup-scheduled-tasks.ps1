@@ -305,7 +305,7 @@ Write-Host @"
 NEXT STEPS:
   1. Verify tasks:  Get-ScheduledTask -TaskPath '\Foundry\'
   2. Test a task:    Start-ScheduledTask -TaskPath '\Foundry\' -TaskName 'Health-Check'
-  3. Check logs:     Get-Content `$HOME\.office-rag-db\reindex.log -Tail 20
+  3. Check logs:     Get-Content `$stateRoot\reindex.log -Tail 20
   4. View status:    powershell -File '$ScriptsDir\commands\status.ps1'
 
 CONDA SETUP (if not done):

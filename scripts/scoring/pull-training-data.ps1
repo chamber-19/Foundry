@@ -4,15 +4,18 @@
 #
 # Pulls historical-scores.jsonl from Machine 2 (100.65.90.57)
 # via the Python HTTP file server running on port 8787, saves
-# it to $HOME\.office-rag-db\historical-scores.jsonl, and
+# it to $stateRoot\historical-scores.jsonl, and
 # reports how many new records were pulled.
 #
 # Can be run manually or as a scheduled task.
 # ============================================================
 
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+
 # HTTP is intentional — traffic travels over the encrypted Tailscale VPN tunnel
 $machine2Url = "http://100.65.90.57:8787/historical-scores.jsonl"
-$outputDir   = "$HOME\.office-rag-db"
+$outputDir   = $stateRoot
 $outputFile  = "$outputDir\historical-scores.jsonl"
 $tmpFile     = "$outputDir\historical-scores.jsonl.tmp"
 

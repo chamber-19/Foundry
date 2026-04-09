@@ -1,14 +1,17 @@
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+
 $webhook = "https://discord.com/api/webhooks/1490590808603361291/SCVngVWu8BmQ87KBfwWZsKjk1nlwrOmSMcfy8F_tn2v2ELtJcDLGWKNhO3Zwy5pAMl_l"
 $userId = "1356296581472718988"
 $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 
-$ragDbPath = "$HOME\.office-rag-db"
+$ragDbPath = $stateRoot
 $ragExists = Test-Path $ragDbPath
 $ragSize = if ($ragExists) { "{0:N1} MB" -f ((Get-ChildItem $ragDbPath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB) } else { "Not found" }
 $lastReindex = if (Test-Path "$ragDbPath\reindex.log") { (Get-Item "$ragDbPath\reindex.log").LastWriteTime.ToString("yyyy-MM-dd HH:mm") } else { "Never" }
 
-$reviewedFile = "$HOME\.office-rag-db\reviewed-prs.json"
+$reviewedFile = "$stateRoot\reviewed-prs.json"
 $reviewedCount = if (Test-Path $reviewedFile) { (Get-Content $reviewedFile | ConvertFrom-Json).Count } else { 0 }
 
 $tasks = @("RAG-Nightly-Reindex", "Auto-PR-Review", "AIAutoPipeline")

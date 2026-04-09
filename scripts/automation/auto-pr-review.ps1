@@ -2,6 +2,11 @@
 # AUTO-PR-REVIEW v2 -- Phase 1 Scoring Engine
 # ============================================================
 
+$scoringModel = if ($env:FOUNDRY_SCORING_MODEL) { $env:FOUNDRY_SCORING_MODEL } else { "deepseek-r1:14b" }
+
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+
 # Ensure Ollama has a model loaded
 $ollamaRunning = $false
 try {
@@ -10,17 +15,17 @@ try {
 } catch {}
 
 if (-not $ollamaRunning) {
-    Write-Host "Loading qwen3:14b..."
-    Start-Process -FilePath "ollama" -ArgumentList "run qwen3:14b" -WindowStyle Hidden
+    Write-Host "Loading $scoringModel..."
+    Start-Process -FilePath "ollama" -ArgumentList "run $scoringModel" -WindowStyle Hidden
     Start-Sleep -Seconds 30
 }
 
-$webhook = "https://discord.com/api/webhooks/1490590808603361291/SCVngVWu8BmQ87KBfwWZsKjk1nlwrOmSMcfy8F_tn2v2ELtJcDLGWKNhO3Zwy5pAMl_l"
+$webhook = if ($env:FOUNDRY_DISCORD_WEBHOOK) { $env:FOUNDRY_DISCORD_WEBHOOK } else { "https://discord.com/api/webhooks/1490590808603361291/SCVngVWu8BmQ87KBfwWZsKjk1nlwrOmSMcfy8F_tn2v2ELtJcDLGWKNhO3Zwy5pAMl_l" }
 $userId = "1356296581472718988"
 $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
-$reviewedFile = "$HOME\.office-rag-db\reviewed-prs.json"
-$memoryFile = "$HOME\.office-rag-db\decision-memory.json"
+$reviewedFile = "$stateRoot\reviewed-prs.json"
+$memoryFile = "$stateRoot\decision-memory.json"
 
 if (Test-Path $reviewedFile) {
     $reviewed = Get-Content $reviewedFile | ConvertFrom-Json
@@ -218,7 +223,7 @@ foreach ($repo in $repos) {
             Write-Host "`n--- Reviewing $repoShort#$($pr.number): $($pr.title) ---"
 
             # ---- Log raw PR data BEFORE scoring (unconditional) ----
-            $rawLogFile = "$HOME\.office-rag-db\raw-pr-data.jsonl"
+            $rawLogFile = "$stateRoot\raw.jsonl"
             try {
                 $rawRecord = @{
                     pr_number    = [int]$pr.number
@@ -325,7 +330,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
 "@
 
             $chatBody = @{
-                model    = "qwen3:14b"
+                model    = $scoringModel
                 messages = @(@{ role = "user"; content = $reviewPrompt })
                 stream   = $false
             } | ConvertTo-Json -Depth 10
@@ -404,7 +409,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
             # Submit GitHub PR review
             try {
                 $reviewBody = @{
-                    body  = "## Auto-Review (Ollama) -- Score: $score/10`n`n$review$overlapNote`n`n---`n*Automated review powered by qwen3:14b + RAG context | Scoring Engine v2*"
+                    body  = "## Auto-Review (Ollama) -- Score: $score/10`n`n$review$overlapNote`n`n---`n*Automated review powered by $scoringModel + RAG context | Scoring Engine v2*"
                     event = $ghReviewEvent
                 } | ConvertTo-Json -Compress
                 Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/pulls/$($pr.number)/reviews" -Method POST -Headers $headers -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($reviewBody)) | Out-Null
@@ -450,7 +455,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
                 embedding_similarity_scores = $null
                 plateau_detected         = $null
                 forecast_confidence      = $null
-                model       = "qwen3:14b"
+                model       = $scoringModel
                 json_parsed = ($null -ne $parsedJson)
                 concerns    = if ($parsedJson) { $parsedJson.concerns } else { @() }
                 summary     = if ($parsedJson) { $parsedJson.summary } else { ($review -split "`n")[0..2] -join " " }

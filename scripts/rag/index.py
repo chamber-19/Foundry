@@ -1,8 +1,19 @@
 import chromadb
 import os
+import sys
 import time
 
-DB_PATH = os.path.expanduser("~/.office-rag-db")
+
+def _resolve_state_root() -> str:
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
+    if env_val:
+        return env_val
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
+
+
+DB_PATH = _resolve_state_root()
 REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", os.path.expanduser("~/OneDrive/Documents/GitHub"))
 EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".py", ".ps1", ".json", ".md", ".yml", ".yaml", ".css", ".html", ".sh"}
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "venv"}

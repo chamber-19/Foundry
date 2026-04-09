@@ -4,16 +4,19 @@
 #
 # Fetches all closed PRs from Koraji95-coder/Foundry via the
 # GitHub API (read-only), scores each one locally with
-# qwen3:8b via Ollama, and appends results to:
-#   $HOME\.office-rag-db\historical-scores.jsonl
+# the batch model via Ollama, and appends results to:
+#   $stateRoot\historical-scores.jsonl
 #
 # Idempotent — already-scored PRs are skipped.
 # ============================================================
 
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+
 $repo      = "Koraji95-coder/Foundry"
 $repoShort = "Foundry"
-$model     = "qwen3:8b"
-$outputDir = "$HOME\.office-rag-db"
+$model     = if ($env:FOUNDRY_BATCH_MODEL) { $env:FOUNDRY_BATCH_MODEL } else { "qwen2.5-coder:32b" }
+$outputDir = $stateRoot
 $outputFile = "$outputDir\historical-scores.jsonl"
 $ghToken   = $env:GITHUB_TOKEN
 

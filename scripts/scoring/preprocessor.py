@@ -31,7 +31,17 @@ from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Any
 
-MEMORY_FILE = os.path.join(os.path.expanduser("~"), ".office-rag-db", "decision-memory.json")
+def _resolve_state_root() -> str:
+    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
+    if env_val:
+        return env_val
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
+
+
+MEMORY_FILE = os.path.join(_resolve_state_root(), "decision-memory.json")
 
 
 def _try_import_sklearn() -> bool:
@@ -308,16 +318,6 @@ def _classify_area(files) -> str:
     if not area_counts:
         return "other"
     return max(area_counts, key=area_counts.get)
-
-
-def _resolve_state_root() -> str:
-    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
-    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
-    if env_val:
-        return env_val
-    if sys.platform == "win32":
-        return r"C:\FoundryState"
-    return os.path.join(os.path.expanduser("~"), "foundry-state")
 
 
 def _ml_historical_score(pr_data, full_memory, area) -> tuple[int, str]:

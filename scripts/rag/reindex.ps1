@@ -1,6 +1,8 @@
 # RAG Re-Index with Safe Git Pull
 # Pulls latest from Foundry repo, then re-indexes the codebase
-$logFile = "$HOME\.office-rag-db\reindex.log"
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+$logFile = "$stateRoot\reindex.log"
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 $repoRoot = if ($env:FOUNDRY_REPO_ROOT) { $env:FOUNDRY_REPO_ROOT } else { "$env:USERPROFILE\Documents\GitHub\Foundry" }
 $repos = @(

@@ -1,11 +1,14 @@
 param([string]$prRef)
 
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+
 if (-not $prRef) {
     Write-Host "Usage: approve Office#27  or  approve Suite#54"
     return
 }
 
-$memoryFile = "$HOME\.office-rag-db\decision-memory.json"
+$memoryFile = "$stateRoot\decision-memory.json"
 $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 

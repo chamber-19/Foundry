@@ -4,7 +4,17 @@ import sys
 import json
 import urllib.request
 
-DB_PATH = os.path.expanduser("~/.office-rag-db")
+
+def _resolve_state_root() -> str:
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
+    if env_val:
+        return env_val
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
+
+
+DB_PATH = _resolve_state_root()
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 def query_rag(question, n_results=5):
@@ -20,7 +30,9 @@ def query_rag(question, n_results=5):
 
     return "\n\n".join(context)
 
-def ask_ollama(prompt, model="qwen3:14b"):
+def ask_ollama(prompt, model=None):
+    if model is None:
+        model = os.environ.get("FOUNDRY_SCORING_MODEL", "deepseek-r1:14b")
     payload = json.dumps({
         "model": model,
         "prompt": prompt,

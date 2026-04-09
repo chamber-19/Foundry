@@ -22,7 +22,17 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-MEMORY_FILE = os.path.join(os.path.expanduser("~"), ".office-rag-db", "decision-memory.json")
+def _resolve_state_root() -> str:
+    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
+    if env_val:
+        return env_val
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
+
+
+MEMORY_FILE = os.path.join(_resolve_state_root(), "decision-memory.json")
 
 FEATURE_NAMES = [
     "total_size",
@@ -45,16 +55,6 @@ def _try_import_sklearn() -> bool:
         return True
     except ImportError:
         return False
-
-
-def _resolve_state_root() -> str:
-    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
-    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
-    if env_val:
-        return env_val
-    if sys.platform == "win32":
-        return r"C:\FoundryState"
-    return os.path.join(os.path.expanduser("~"), "foundry-state")
 
 
 def load_full_memory() -> list[dict[str, Any]]:

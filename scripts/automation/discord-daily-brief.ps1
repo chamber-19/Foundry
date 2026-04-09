@@ -1,9 +1,11 @@
+$scoringModel = if ($env:FOUNDRY_SCORING_MODEL) { $env:FOUNDRY_SCORING_MODEL } else { "deepseek-r1:14b" }
+
 $webhook = "https://discord.com/api/webhooks/1490590808603361291/SCVngVWu8BmQ87KBfwWZsKjk1nlwrOmSMcfy8F_tn2v2ELtJcDLGWKNhO3Zwy5pAMl_l"
 $userId = "1356296581472718988"
 
 try {
     $chatBody = @{
-        model    = "qwen3:14b"
+        model    = $scoringModel
         messages = @(@{ role = "user"; content = "Give me a daily brief. What should I focus on today?" })
         stream   = $false
     } | ConvertTo-Json -Depth 3

@@ -3,7 +3,17 @@ import os
 import sys
 import json
 
-DB_PATH = os.path.expanduser("~/.office-rag-db")
+
+def _resolve_state_root() -> str:
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
+    if env_val:
+        return env_val
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
+
+
+DB_PATH = _resolve_state_root()
 
 def query_codebase(question, n_results=5):
     client = chromadb.PersistentClient(path=DB_PATH)
