@@ -1,27 +1,27 @@
 using System.Text.Json;
-using DailyDesk.Models;
-using DailyDesk.Services;
+using Foundry.Models;
+using Foundry.Services;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 /// <summary>
 /// Background worker that polls for queued jobs and executes them.
 /// Runs one job at a time to match the existing _mlGate concurrency model.
 /// </summary>
-public sealed class OfficeJobWorker : BackgroundService
+public sealed class FoundryJobWorker : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DefaultJobTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan StaleJobThreshold = TimeSpan.FromMinutes(10);
 
-    private readonly OfficeBrokerOrchestrator _orchestrator;
-    private readonly ILogger<OfficeJobWorker> _logger;
+    private readonly FoundryOrchestrator _orchestrator;
+    private readonly ILogger<FoundryJobWorker> _logger;
     private readonly JsonSerializerOptions _jsonOptions =
         new() { PropertyNameCaseInsensitive = true, WriteIndented = false };
 
-    public OfficeJobWorker(
-        OfficeBrokerOrchestrator orchestrator,
-        ILogger<OfficeJobWorker> logger)
+    public FoundryJobWorker(
+        FoundryOrchestrator orchestrator,
+        ILogger<FoundryJobWorker> logger)
     {
         _orchestrator = orchestrator;
         _logger = logger;
@@ -36,7 +36,7 @@ public sealed class OfficeJobWorker : BackgroundService
             _logger.LogWarning("Recovered {Count} stale job(s) from prior broker session.", recoveredCount);
         }
 
-        _logger.LogInformation("OfficeJobWorker started. Polling for queued jobs every {Interval}s.", PollInterval.TotalSeconds);
+        _logger.LogInformation("FoundryJobWorker started. Polling for queued jobs every {Interval}s.", PollInterval.TotalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -58,15 +58,15 @@ public sealed class OfficeJobWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "OfficeJobWorker encountered an unexpected error.");
+                _logger.LogError(ex, "FoundryJobWorker encountered an unexpected error.");
                 await Task.Delay(PollInterval, stoppingToken);
             }
         }
 
-        _logger.LogInformation("OfficeJobWorker stopped.");
+        _logger.LogInformation("FoundryJobWorker stopped.");
     }
 
-    private async Task ExecuteJobAsync(OfficeJob job, CancellationToken stoppingToken)
+    private async Task ExecuteJobAsync(FoundryJob job, CancellationToken stoppingToken)
     {
         _logger.LogInformation("Executing job {JobId} of type {JobType}.", job.Id, job.Type);
         using var timeoutCts = new CancellationTokenSource(DefaultJobTimeout);
@@ -77,13 +77,13 @@ public sealed class OfficeJobWorker : BackgroundService
         {
             var resultJson = job.Type switch
             {
-                OfficeJobType.MLAnalytics => await ExecuteMLAnalyticsAsync(ct),
-                OfficeJobType.MLForecast => await ExecuteMLForecastAsync(ct),
-                OfficeJobType.MLEmbeddings => await ExecuteMLEmbeddingsAsync(job.RequestPayload, ct),
-                OfficeJobType.MLPipeline => await ExecuteMLPipelineAsync(ct),
-                OfficeJobType.MLExportArtifacts => await ExecuteMLExportArtifactsAsync(ct),
-                OfficeJobType.KnowledgeIndex => await ExecuteKnowledgeIndexAsync(ct),
-                OfficeJobType.DailyRun => await ExecuteDailyRunAsync(ct),
+                FoundryJobType.MLAnalytics => await ExecuteMLAnalyticsAsync(ct),
+                FoundryJobType.MLForecast => await ExecuteMLForecastAsync(ct),
+                FoundryJobType.MLEmbeddings => await ExecuteMLEmbeddingsAsync(job.RequestPayload, ct),
+                FoundryJobType.MLPipeline => await ExecuteMLPipelineAsync(ct),
+                FoundryJobType.MLExportArtifacts => await ExecuteMLExportArtifactsAsync(ct),
+                FoundryJobType.KnowledgeIndex => await ExecuteKnowledgeIndexAsync(ct),
+                FoundryJobType.DailyRun => await ExecuteDailyRunAsync(ct),
                 _ => throw new InvalidOperationException($"Unknown job type: {job.Type}"),
             };
 
@@ -110,13 +110,13 @@ public sealed class OfficeJobWorker : BackgroundService
 
     private Task<string> ExecuteMLAnalyticsAsync(CancellationToken ct)
     {
-        var result = new DailyDesk.Models.MLAnalyticsResult { Ok = false, Engine = "not-run" };
+        var result = new Foundry.Models.MLAnalyticsResult { Ok = false, Engine = "not-run" };
         return Task.FromResult(JsonSerializer.Serialize(result, _jsonOptions));
     }
 
     private Task<string> ExecuteMLForecastAsync(CancellationToken ct)
     {
-        var result = new DailyDesk.Models.MLForecastResult { Ok = false, Engine = "not-run" };
+        var result = new Foundry.Models.MLForecastResult { Ok = false, Engine = "not-run" };
         return Task.FromResult(JsonSerializer.Serialize(result, _jsonOptions));
     }
 

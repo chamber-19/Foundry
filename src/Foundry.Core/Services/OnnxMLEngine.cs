@@ -1,10 +1,10 @@
 using System.IO;
 using System.Numerics.Tensors;
-using DailyDesk.Models;
+using Foundry.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// In-process ONNX Runtime engine for ML inference.

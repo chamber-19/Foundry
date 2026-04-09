@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public sealed class ProcessRunner
 {

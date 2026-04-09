@@ -1,10 +1,10 @@
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Domain coordinator for ML pipeline operations: analytics, forecast, embeddings, and artifact export.
-/// Extracted from OfficeBrokerOrchestrator per TECHNICAL-DEBT.md.
+/// Extracted from FoundryOrchestrator per TECHNICAL-DEBT.md.
 /// </summary>
 public sealed class MLPipelineCoordinator
 {

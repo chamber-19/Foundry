@@ -1,31 +1,31 @@
-using DailyDesk.Services;
+using Foundry.Services;
 using Microsoft.Extensions.Logging;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 internal static class MLEndpoints
 {
     public static void MapMLEndpoints(this IEndpointRouteBuilder app, ILogger logger)
     {
-        app.MapPost("/api/ml/analytics", async (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/analytics", async (HttpContext httpContext, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.MLAnalytics, "broker");
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.MLAnalytics, "broker");
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
             try
             {
-                var analytics = new DailyDesk.Models.MLAnalyticsResult { Ok = false, Engine = "not-run" };
+                var analytics = new Foundry.Models.MLAnalyticsResult { Ok = false, Engine = "not-run" };
                 var state = await orchestrator.GetStateAsync(ct);
                 return Results.Ok(new { analytics, state });
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker ML analytics endpoint failed.");
+                logger.LogError(exception, "Foundry broker ML analytics endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to run ML analytics",
@@ -34,25 +34,25 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapPost("/api/ml/forecast", async (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/forecast", async (HttpContext httpContext, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.MLForecast, "broker");
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.MLForecast, "broker");
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
             try
             {
-                var forecast = new DailyDesk.Models.MLForecastResult { Ok = false, Engine = "not-run" };
+                var forecast = new Foundry.Models.MLForecastResult { Ok = false, Engine = "not-run" };
                 var state = await orchestrator.GetStateAsync(ct);
                 return Results.Ok(new { forecast, state });
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker ML forecast endpoint failed.");
+                logger.LogError(exception, "Foundry broker ML forecast endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to run ML forecast",
@@ -61,14 +61,14 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapPost("/api/ml/embeddings", async (HttpContext httpContext, MLEmbeddingsRequest request, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/embeddings", async (HttpContext httpContext, MLEmbeddingsRequest request, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
                 var payload = request.Query is not null ? System.Text.Json.JsonSerializer.Serialize(new { query = request.Query }) : null;
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.MLEmbeddings, "broker", payload);
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.MLEmbeddings, "broker", payload);
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
@@ -80,7 +80,7 @@ internal static class MLEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker ML embeddings endpoint failed.");
+                logger.LogError(exception, "Foundry broker ML embeddings endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to run ML embeddings",
@@ -89,13 +89,13 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapPost("/api/ml/pipeline", async (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/pipeline", async (HttpContext httpContext, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.MLPipeline, "broker");
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.MLPipeline, "broker");
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
@@ -107,7 +107,7 @@ internal static class MLEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker full ML pipeline endpoint failed.");
+                logger.LogError(exception, "Foundry broker full ML pipeline endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to run full ML pipeline",
@@ -116,13 +116,13 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapPost("/api/ml/export-artifacts", async (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/export-artifacts", async (HttpContext httpContext, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.MLExportArtifacts, "broker");
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.MLExportArtifacts, "broker");
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
@@ -134,7 +134,7 @@ internal static class MLEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker ML artifact export endpoint failed.");
+                logger.LogError(exception, "Foundry broker ML artifact export endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to export ML artifacts",
@@ -145,14 +145,14 @@ internal static class MLEndpoints
 
         // --- Job Status Endpoints (Phase 3) ---
 
-        app.MapGet("/api/jobs", (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/jobs", (HttpContext httpContext, FoundryOrchestrator orchestrator) =>
         {
             try
             {
                 var statusFilter = httpContext.Request.Query["status"].FirstOrDefault();
                 var typeFilter = httpContext.Request.Query["type"].FirstOrDefault();
 
-                IReadOnlyList<DailyDesk.Models.OfficeJob> jobs;
+                IReadOnlyList<Foundry.Models.FoundryJob> jobs;
                 if (!string.IsNullOrWhiteSpace(statusFilter))
                 {
                     jobs = orchestrator.JobStore.ListByStatus(statusFilter.ToLowerInvariant(), 50);
@@ -181,7 +181,7 @@ internal static class MLEndpoints
 
         // --- Job Metrics Endpoint (Phase 4) ---
 
-        app.MapGet("/api/jobs/metrics", (OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/jobs/metrics", (FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -197,7 +197,7 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapGet("/api/jobs/{jobId}", (string jobId, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/jobs/{jobId}", (string jobId, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -228,7 +228,7 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapGet("/api/jobs/{jobId}/result", (string jobId, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/jobs/{jobId}/result", (string jobId, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -237,7 +237,7 @@ internal static class MLEndpoints
                 {
                     return Results.NotFound(new { error = $"Job '{jobId}' not found." });
                 }
-                if (job.Status != DailyDesk.Models.OfficeJobStatus.Succeeded)
+                if (job.Status != Foundry.Models.FoundryJobStatus.Succeeded)
                 {
                     return Results.BadRequest(new { error = $"Job '{jobId}' has status '{job.Status}'. Result is only available for succeeded jobs." });
                 }
@@ -266,7 +266,7 @@ internal static class MLEndpoints
             }
         });
 
-        app.MapDelete("/api/jobs/{jobId}", (string jobId, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapDelete("/api/jobs/{jobId}", (string jobId, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -275,7 +275,7 @@ internal static class MLEndpoints
                 {
                     return Results.NotFound(new { error = $"Job '{jobId}' not found." });
                 }
-                if (job.Status is not (DailyDesk.Models.OfficeJobStatus.Succeeded or DailyDesk.Models.OfficeJobStatus.Failed))
+                if (job.Status is not (Foundry.Models.FoundryJobStatus.Succeeded or Foundry.Models.FoundryJobStatus.Failed))
                 {
                     return Results.BadRequest(new { error = $"Job '{jobId}' has status '{job.Status}'. Only completed (succeeded/failed) jobs can be deleted." });
                 }

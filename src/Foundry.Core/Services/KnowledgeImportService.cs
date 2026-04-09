@@ -3,9 +3,9 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public sealed class KnowledgeImportService
 {

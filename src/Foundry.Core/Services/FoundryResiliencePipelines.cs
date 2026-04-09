@@ -3,13 +3,13 @@ using Polly.CircuitBreaker;
 using Polly.Retry;
 using Polly.Timeout;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
-/// Factory for named Polly v8 resilience pipelines used across Office services.
+/// Factory for named Polly v8 resilience pipelines used across Foundry services.
 /// Each pipeline matches the retry/circuit-breaker/timeout strategy defined in Docs/ARCHITECTURE.md.
 /// </summary>
-public static class OfficeResiliencePipelines
+public static class FoundryResiliencePipelines
 {
     /// <summary>
     /// Ollama HTTP calls: 3x retry with exponential backoff + circuit breaker.

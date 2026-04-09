@@ -1,6 +1,6 @@
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Manages job schedule persistence via LiteDB.
@@ -8,9 +8,9 @@ namespace DailyDesk.Services;
 /// </summary>
 public sealed class JobSchedulerStore
 {
-    private readonly OfficeDatabase _db;
+    private readonly FoundryDatabase _db;
 
-    public JobSchedulerStore(OfficeDatabase db)
+    public JobSchedulerStore(FoundryDatabase db)
     {
         _db = db;
     }

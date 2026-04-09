@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Wraps the Qdrant vector database client for storing and searching document embeddings.

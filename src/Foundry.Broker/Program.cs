@@ -1,6 +1,6 @@
 using System.Net;
-using DailyDesk.Broker;
-using DailyDesk.Services;
+using Foundry.Broker;
+using Foundry.Services;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -9,7 +9,7 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .WriteTo.Console()
     .WriteTo.File(
-        Path.Combine("State", "logs", "office-broker-.log"),
+        Path.Combine("State", "logs", "foundry-broker-.log"),
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 14,
         fileSizeLimitBytes: 10_485_760,
@@ -19,15 +19,15 @@ Log.Logger = new LoggerConfiguration()
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
-var configuredHost = builder.Configuration["Broker:Host"] ?? OfficeBrokerDefaults.Host;
+var configuredHost = builder.Configuration["Broker:Host"] ?? FoundryBrokerDefaults.Host;
 var configuredPort =
     builder.Configuration.GetValue<int?>("Broker:Port") is { } parsedPort && parsedPort > 0
         ? parsedPort
-        : OfficeBrokerDefaults.Port;
+        : FoundryBrokerDefaults.Port;
 if (!IPAddress.TryParse(configuredHost, out var ipAddress))
 {
     ipAddress = IPAddress.Loopback;
-    configuredHost = OfficeBrokerDefaults.Host;
+    configuredHost = FoundryBrokerDefaults.Host;
 }
 
 builder.WebHost.ConfigureKestrel(options =>
@@ -35,9 +35,9 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Listen(ipAddress, configuredPort);
 });
 
-var baseUrl = OfficeBrokerDefaults.BuildBaseUrl(configuredHost, configuredPort);
+var baseUrl = FoundryBrokerDefaults.BuildBaseUrl(configuredHost, configuredPort);
 builder.Services.AddSingleton(
-    new OfficeBrokerRuntimeMetadata
+    new FoundryBrokerRuntimeMetadata
     {
         Host = configuredHost,
         Port = configuredPort,
@@ -46,8 +46,8 @@ builder.Services.AddSingleton(
         LoopbackOnly = true,
     }
 );
-builder.Services.AddSingleton<OfficeBrokerOrchestrator>();
-builder.Services.AddHostedService<OfficeJobWorker>();
+builder.Services.AddSingleton<FoundryOrchestrator>();
+builder.Services.AddHostedService<FoundryJobWorker>();
 builder.Services.AddHostedService<JobRetentionWorker>();
 builder.Services.AddHostedService<JobSchedulerWorker>();
 
@@ -57,9 +57,6 @@ var logger = app.Logger;
 app.UseSerilogRequestLogging();
 
 app.MapHealthEndpoints(logger);
-app.MapChatEndpoints(logger);
-app.MapResearchEndpoints(logger);
-app.MapOperatorEndpoints(logger);
 app.MapMLEndpoints(logger);
 app.MapKnowledgeEndpoints(logger);
 app.MapScheduleEndpoints(logger);

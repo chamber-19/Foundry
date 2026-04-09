@@ -1,9 +1,9 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Overall health report returned by GET /api/health.
 /// </summary>
-public sealed class OfficeHealthReport
+public sealed class FoundryHealthReport
 {
     public string Overall { get; set; } = HealthStatus.Ok;
     public SubsystemHealth Ollama { get; set; } = new();

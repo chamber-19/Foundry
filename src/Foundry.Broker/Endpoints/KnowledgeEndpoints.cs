@@ -1,7 +1,7 @@
-using DailyDesk.Services;
+using Foundry.Services;
 using Microsoft.Extensions.Logging;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 internal static class KnowledgeEndpoints
 {
@@ -9,13 +9,13 @@ internal static class KnowledgeEndpoints
     {
         // --- Knowledge Indexing Endpoints (Phase 5) ---
 
-        app.MapPost("/api/ml/index-knowledge", async (HttpContext httpContext, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/ml/index-knowledge", async (HttpContext httpContext, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             var sync = httpContext.Request.Query["sync"].FirstOrDefault()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
             if (!sync)
             {
-                var job = orchestrator.JobStore.Enqueue(DailyDesk.Models.OfficeJobType.KnowledgeIndex, "broker");
+                var job = orchestrator.JobStore.Enqueue(Foundry.Models.FoundryJobType.KnowledgeIndex, "broker");
                 return Results.Accepted($"/api/jobs/{job.Id}", new { jobId = job.Id, status = job.Status });
             }
 
@@ -35,7 +35,7 @@ internal static class KnowledgeEndpoints
             }
         });
 
-        app.MapGet("/api/knowledge/index-status", async (OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapGet("/api/knowledge/index-status", async (FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
@@ -55,11 +55,11 @@ internal static class KnowledgeEndpoints
 
         // --- Knowledge Search Endpoint (Phase 9) ---
 
-        app.MapPost("/api/knowledge/search", async (KnowledgeSearchRequest request, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/knowledge/search", async (KnowledgeSearchRequest request, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
-                var searchService = new DailyDesk.Services.KnowledgeSearchService(
+                var searchService = new Foundry.Services.KnowledgeSearchService(
                     orchestrator.EmbeddingService,
                     orchestrator.VectorStoreService);
                 var response = await searchService.SearchAsync(
@@ -79,7 +79,7 @@ internal static class KnowledgeEndpoints
             }
         });
 
-        app.MapPost("/api/library/import", async (LibraryImportRequest request, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapPost("/api/library/import", async (LibraryImportRequest request, FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
@@ -97,7 +97,7 @@ internal static class KnowledgeEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker library import endpoint failed.");
+                logger.LogError(exception, "Foundry broker library import endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
                     title: "Failed to import library files",

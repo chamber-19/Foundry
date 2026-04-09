@@ -1,8 +1,8 @@
-using DailyDesk.Services;
+using Foundry.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 internal static class ScheduleEndpoints
 {
@@ -10,7 +10,7 @@ internal static class ScheduleEndpoints
     {
         // --- Schedule Endpoints (Phase 8) ---
 
-        app.MapGet("/api/schedules", (OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/schedules", (FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -27,7 +27,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapPost("/api/schedules", (CreateScheduleRequest request, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapPost("/api/schedules", (CreateScheduleRequest request, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -38,7 +38,7 @@ internal static class ScheduleEndpoints
                     return Results.BadRequest(new { errors = validation.Errors.Select(e => e.ErrorMessage) });
                 }
 
-                var schedule = new DailyDesk.Models.JobSchedule
+                var schedule = new Foundry.Models.JobSchedule
                 {
                     Name = request.Name,
                     JobType = request.JobType,
@@ -60,7 +60,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapPut("/api/schedules/{id}", (string id, UpdateScheduleRequest request, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapPut("/api/schedules/{id}", (string id, UpdateScheduleRequest request, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -96,7 +96,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapDelete("/api/schedules/{id}", (string id, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapDelete("/api/schedules/{id}", (string id, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -119,7 +119,7 @@ internal static class ScheduleEndpoints
 
         // --- Daily Run Endpoint (Phase 8) ---
 
-        app.MapGet("/api/daily-run/latest", (OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/daily-run/latest", (FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -142,7 +142,7 @@ internal static class ScheduleEndpoints
 
         // --- Workflow Endpoints (Phase 8) ---
 
-        app.MapGet("/api/workflows", (OfficeBrokerOrchestrator orchestrator) =>
+        app.MapGet("/api/workflows", (FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -159,7 +159,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapPost("/api/workflows", (CreateWorkflowRequest request, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapPost("/api/workflows", (CreateWorkflowRequest request, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -170,12 +170,12 @@ internal static class ScheduleEndpoints
                     return Results.BadRequest(new { errors = validation.Errors.Select(e => e.ErrorMessage) });
                 }
 
-                var template = new DailyDesk.Models.WorkflowTemplate
+                var template = new Foundry.Models.WorkflowTemplate
                 {
                     Name = request.Name,
                     Description = request.Description ?? string.Empty,
-                    FailurePolicy = request.FailurePolicy ?? DailyDesk.Models.WorkflowFailurePolicy.Abort,
-                    Steps = request.Steps.Select(s => new DailyDesk.Models.WorkflowStep
+                    FailurePolicy = request.FailurePolicy ?? Foundry.Models.WorkflowFailurePolicy.Abort,
+                    Steps = request.Steps.Select(s => new Foundry.Models.WorkflowStep
                     {
                         JobType = s.JobType,
                         Label = s.Label ?? string.Empty,
@@ -196,7 +196,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapPost("/api/workflows/{id}/run", (string id, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapPost("/api/workflows/{id}/run", (string id, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -234,7 +234,7 @@ internal static class ScheduleEndpoints
             }
         });
 
-        app.MapDelete("/api/workflows/{id}", (string id, OfficeBrokerOrchestrator orchestrator) =>
+        app.MapDelete("/api/workflows/{id}", (string id, FoundryOrchestrator orchestrator) =>
         {
             try
             {
@@ -300,7 +300,7 @@ internal sealed class CreateScheduleRequestValidator : AbstractValidator<CreateS
         RuleFor(x => x.CronExpression)
             .NotEmpty()
             .WithMessage("CronExpression is required.")
-            .Must(cron => DailyDesk.Services.JobSchedulerStore.ComputeNextRun(cron, DateTimeOffset.Now) is not null)
+            .Must(cron => Foundry.Services.JobSchedulerStore.ComputeNextRun(cron, DateTimeOffset.Now) is not null)
             .WithMessage("CronExpression is not a valid cron expression or simple interval (e.g. 'every 30m', 'every 2h', '0 8 * * *').");
     }
 }
@@ -310,7 +310,7 @@ internal sealed class UpdateScheduleRequestValidator : AbstractValidator<UpdateS
     public UpdateScheduleRequestValidator()
     {
         RuleFor(x => x.CronExpression)
-            .Must(cron => cron is null || DailyDesk.Services.JobSchedulerStore.ComputeNextRun(cron, DateTimeOffset.Now) is not null)
+            .Must(cron => cron is null || Foundry.Services.JobSchedulerStore.ComputeNextRun(cron, DateTimeOffset.Now) is not null)
             .WithMessage("CronExpression is not a valid cron expression or simple interval.");
     }
 }
@@ -337,8 +337,8 @@ internal sealed class CreateWorkflowRequestValidator : AbstractValidator<CreateW
 
         RuleFor(x => x.FailurePolicy)
             .Must(p => p is null
-                       || p.Equals(DailyDesk.Models.WorkflowFailurePolicy.Abort, StringComparison.OrdinalIgnoreCase)
-                       || p.Equals(DailyDesk.Models.WorkflowFailurePolicy.Continue, StringComparison.OrdinalIgnoreCase))
+                       || p.Equals(Foundry.Models.WorkflowFailurePolicy.Abort, StringComparison.OrdinalIgnoreCase)
+                       || p.Equals(Foundry.Models.WorkflowFailurePolicy.Continue, StringComparison.OrdinalIgnoreCase))
             .WithMessage("FailurePolicy must be 'abort' or 'continue'.");
     }
 }

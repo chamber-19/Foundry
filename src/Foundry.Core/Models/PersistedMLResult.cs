@@ -1,4 +1,4 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Wraps an ML result for LiteDB persistence with metadata.

@@ -1,4 +1,4 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Represents a single semantic search result returned to the WPF client.

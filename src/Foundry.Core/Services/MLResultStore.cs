@@ -1,9 +1,9 @@
 using System.Text.Json;
-using DailyDesk.Models;
+using Foundry.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Persists latest ML results (analytics, forecast, embeddings) to LiteDB.
@@ -12,12 +12,12 @@ namespace DailyDesk.Services;
 /// </summary>
 public sealed class MLResultStore
 {
-    private readonly OfficeDatabase _db;
+    private readonly FoundryDatabase _db;
     private readonly ILogger<MLResultStore> _logger;
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNameCaseInsensitive = true, WriteIndented = false };
 
-    public MLResultStore(OfficeDatabase db, ILogger<MLResultStore>? logger = null)
+    public MLResultStore(FoundryDatabase db, ILogger<MLResultStore>? logger = null)
     {
         _db = db;
         _logger = logger ?? NullLogger<MLResultStore>.Instance;

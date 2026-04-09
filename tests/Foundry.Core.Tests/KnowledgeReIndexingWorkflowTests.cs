@@ -1,9 +1,9 @@
-using DailyDesk.Models;
-using DailyDesk.Services;
+using Foundry.Models;
+using Foundry.Services;
 using OllamaSharp;
 using Xunit;
 
-namespace DailyDesk.Core.Tests;
+namespace Foundry.Core.Tests;
 
 /// <summary>
 /// Integration tests that verify compliance with the knowledge re-indexing workflow
@@ -50,7 +50,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     private static VectorStoreService BuildUnavailableVectorStore() =>
         new VectorStoreService(host: "localhost", port: 16335);
 
-    private static KnowledgeCoordinator BuildCoordinator(OfficeDatabase db) =>
+    private static KnowledgeCoordinator BuildCoordinator(FoundryDatabase db) =>
         new KnowledgeCoordinator(
             BuildUnavailableEmbeddingService(),
             BuildUnavailableVectorStore(),
@@ -89,7 +89,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void KnowledgeRefresh_Template_HasAbortFailurePolicy()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
@@ -101,7 +101,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void KnowledgeRefresh_Template_HasExactlyTwoSteps()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
@@ -113,31 +113,31 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void KnowledgeRefresh_Template_FirstStep_IsKnowledgeIndex()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
 
-        Assert.Equal(OfficeJobType.KnowledgeIndex, template.Steps[0].JobType);
+        Assert.Equal(FoundryJobType.KnowledgeIndex, template.Steps[0].JobType);
     }
 
     [Fact]
     public void KnowledgeRefresh_Template_SecondStep_IsMLEmbeddings()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
 
-        Assert.Equal(OfficeJobType.MLEmbeddings, template.Steps[1].JobType);
+        Assert.Equal(FoundryJobType.MLEmbeddings, template.Steps[1].JobType);
     }
 
     [Fact]
     public void KnowledgeRefresh_Template_IsBuiltIn()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
@@ -149,7 +149,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void KnowledgeRefresh_Template_CannotBeDeleted()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
@@ -163,7 +163,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void KnowledgeRefresh_Template_StepLabelsMatchGuide()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
@@ -216,7 +216,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     {
         // "Daily Run" is not critical — it continues even when individual steps fail
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Daily Run");
@@ -228,7 +228,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     public void ExamPrep_Template_HasContinuePolicy()
     {
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Exam Prep");
@@ -242,7 +242,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         // Demonstrates that a failed KnowledgeIndex step would trigger an abort
         // on the "Knowledge Refresh" workflow's abort-on-failure check.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var coordinator = BuildCoordinator(db);
 
         var documents = new[]
@@ -263,7 +263,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     {
         // Verifies the result accurately aggregates failure counts used by abort logic
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var coordinator = BuildCoordinator(db);
 
         var documents = new[]
@@ -286,7 +286,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     {
         // An empty index run should never trigger the abort policy
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var coordinator = BuildCoordinator(db);
 
         var result = await coordinator.RunKnowledgeIndexAsync([]);
@@ -368,7 +368,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         );
         var library = await importService.LoadAsync(tmp.Path);
 
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var coordinator = BuildCoordinator(db);
 
         var result = await coordinator.RunKnowledgeIndexAsync(library.Documents);
@@ -386,7 +386,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         // After a document's content hash has been recorded, re-running the index
         // on the same content must skip it entirely — no redundant embedding calls.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         const string path = "doc/relay-protection.md";
@@ -414,7 +414,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         // When document content changes (new hash), the coordinator must attempt
         // re-indexing even though the path was previously indexed.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         const string path = "doc/relay-protection.md";
@@ -445,7 +445,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         // one modified document is attempted. This validates the incremental
         // re-indexing contract of the Knowledge Refresh workflow.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         // Pre-index two documents
@@ -503,7 +503,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         var library = await importService.LoadAsync(tmp.Path);
         Assert.Equal(2, library.Documents.Count);
 
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         // Simulate that first run already indexed file A
@@ -539,7 +539,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
         // Low-level check: KnowledgeIndexStore.NeedsIndexing returns false when
         // content hash matches the recorded value — this is the gate for skip logic.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         const string path = "doc/test.md";
@@ -557,7 +557,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     {
         // NeedsIndexing must return true when content changes — triggering re-indexing.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         const string path = "doc/test.md";
@@ -574,7 +574,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     {
         // A document never before indexed must always attempt indexing.
         using var tmp = new TempDirectory();
-        using var db = new OfficeDatabase(tmp.Path);
+        using var db = new FoundryDatabase(tmp.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         var hash = KnowledgeIndexStore.ComputeContentHash("Brand new document content.");

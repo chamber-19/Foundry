@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public static class KnowledgePromptContextBuilder
 {

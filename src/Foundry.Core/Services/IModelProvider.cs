@@ -1,4 +1,4 @@
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public interface IModelProvider
 {

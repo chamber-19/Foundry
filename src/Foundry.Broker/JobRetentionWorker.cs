@@ -1,6 +1,6 @@
-using DailyDesk.Services;
+using Foundry.Services;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 /// <summary>
 /// Background service that periodically deletes completed jobs older than the
@@ -10,11 +10,11 @@ public sealed class JobRetentionWorker : BackgroundService
 {
     private static readonly TimeSpan RunInterval = TimeSpan.FromHours(24);
 
-    private readonly OfficeBrokerOrchestrator _orchestrator;
+    private readonly FoundryOrchestrator _orchestrator;
     private readonly ILogger<JobRetentionWorker> _logger;
 
     public JobRetentionWorker(
-        OfficeBrokerOrchestrator orchestrator,
+        FoundryOrchestrator orchestrator,
         ILogger<JobRetentionWorker> logger)
     {
         _orchestrator = orchestrator;

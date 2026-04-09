@@ -4,7 +4,7 @@ using OllamaSharp;
 using OllamaSharp.Models;
 using Polly;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Generates text embeddings via Ollama's /api/embed endpoint.

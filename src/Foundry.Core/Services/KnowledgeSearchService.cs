@@ -1,8 +1,8 @@
-using DailyDesk.Models;
+using Foundry.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Provides semantic search over the knowledge library using Qdrant vector search.

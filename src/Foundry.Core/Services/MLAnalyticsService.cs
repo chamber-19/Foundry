@@ -1,12 +1,12 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using DailyDesk.Models;
+using Foundry.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public sealed class MLAnalyticsService
 {

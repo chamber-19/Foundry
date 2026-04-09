@@ -4,7 +4,7 @@ using LiteDB;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Tracks which knowledge documents have been indexed (embedded + stored in vector DB).
@@ -17,7 +17,7 @@ public sealed class KnowledgeIndexStore
     private readonly ILiteCollection<IndexedDocumentRecord> _collection;
     private readonly ILogger<KnowledgeIndexStore> _logger;
 
-    public KnowledgeIndexStore(OfficeDatabase database, ILogger<KnowledgeIndexStore>? logger = null)
+    public KnowledgeIndexStore(FoundryDatabase database, ILogger<KnowledgeIndexStore>? logger = null)
     {
         _collection = database.KnowledgeIndex;
         _logger = logger ?? NullLogger<KnowledgeIndexStore>.Instance;

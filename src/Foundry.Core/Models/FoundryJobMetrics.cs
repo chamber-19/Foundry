@@ -1,9 +1,9 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Snapshot of job system metrics for the dashboard endpoint.
 /// </summary>
-public sealed class OfficeJobMetrics
+public sealed class FoundryJobMetrics
 {
     public int TotalJobs { get; set; }
     public int QueuedCount { get; set; }

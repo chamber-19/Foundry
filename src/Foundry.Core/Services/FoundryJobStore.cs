@@ -1,14 +1,14 @@
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Manages job lifecycle persistence via LiteDB.
 /// Thread-safe for concurrent reads; LiteDB serializes writes.
 /// </summary>
-public sealed class OfficeJobStore
+public sealed class FoundryJobStore
 {
-    private readonly OfficeDatabase _db;
+    private readonly FoundryDatabase _db;
 
     // Process-scoped counter that gives each new job a monotonically increasing sequence
     // number used as a sort key in DequeueNext() for deterministic FIFO ordering.
@@ -17,7 +17,7 @@ public sealed class OfficeJobStore
     // any unprocessed jobs that remain from the previous run.
     private static int _nextSequenceNumber;
 
-    public OfficeJobStore(OfficeDatabase db)
+    public FoundryJobStore(FoundryDatabase db)
     {
         _db = db;
         InitializeSequenceCounter();
@@ -46,13 +46,13 @@ public sealed class OfficeJobStore
     /// <summary>
     /// Creates a new job record in queued state.
     /// </summary>
-    public OfficeJob Enqueue(string type, string? requestedBy = null, string? requestPayload = null)
+    public FoundryJob Enqueue(string type, string? requestedBy = null, string? requestPayload = null)
     {
-        var job = new OfficeJob
+        var job = new FoundryJob
         {
             Id = Guid.NewGuid().ToString(),
             Type = type,
-            Status = OfficeJobStatus.Queued,
+            Status = FoundryJobStatus.Queued,
             CreatedAt = DateTimeOffset.Now,
             SequenceNumber = Interlocked.Increment(ref _nextSequenceNumber),
             RequestedBy = requestedBy,
@@ -66,7 +66,7 @@ public sealed class OfficeJobStore
     /// <summary>
     /// Retrieves a job by its ID.
     /// </summary>
-    public OfficeJob? GetById(string jobId)
+    public FoundryJob? GetById(string jobId)
     {
         return _db.Jobs.FindOne(j => j.Id == jobId);
     }
@@ -74,7 +74,7 @@ public sealed class OfficeJobStore
     /// <summary>
     /// Lists recent jobs, most recent first.
     /// </summary>
-    public IReadOnlyList<OfficeJob> ListRecent(int count = 50)
+    public IReadOnlyList<FoundryJob> ListRecent(int count = 50)
     {
         return _db.Jobs.Query()
             .OrderByDescending(j => j.CreatedAt)
@@ -86,7 +86,7 @@ public sealed class OfficeJobStore
     /// Dequeues the next queued job (oldest first, FIFO).
     /// Returns null if no queued jobs exist.
     /// </summary>
-    public OfficeJob? DequeueNext()
+    public FoundryJob? DequeueNext()
     {
         // Fetch all queued jobs and select the one with the lowest composite sort key.
         // The sort key is projected once per item (not re-evaluated per comparison).
@@ -99,7 +99,7 @@ public sealed class OfficeJobStore
         //     a monotonically increasing counter assigned at enqueue time, guaranteeing
         //     stable FIFO ordering even for jobs enqueued within the same clock tick.
         var job = _db.Jobs.Query()
-            .Where(j => j.Status == OfficeJobStatus.Queued)
+            .Where(j => j.Status == FoundryJobStatus.Queued)
             .ToList()
             .Select(j => new
             {
@@ -114,7 +114,7 @@ public sealed class OfficeJobStore
 
         if (job is null) return null;
 
-        job.Status = OfficeJobStatus.Running;
+        job.Status = FoundryJobStatus.Running;
         job.StartedAt = DateTimeOffset.Now;
         _db.Jobs.Update(job);
         return job;
@@ -128,7 +128,7 @@ public sealed class OfficeJobStore
         var job = _db.Jobs.FindOne(j => j.Id == jobId);
         if (job is null) return;
 
-        job.Status = OfficeJobStatus.Succeeded;
+        job.Status = FoundryJobStatus.Succeeded;
         job.CompletedAt = DateTimeOffset.Now;
         job.ResultJson = resultJson;
         _db.Jobs.Update(job);
@@ -142,7 +142,7 @@ public sealed class OfficeJobStore
         var job = _db.Jobs.FindOne(j => j.Id == jobId);
         if (job is null) return;
 
-        job.Status = OfficeJobStatus.Failed;
+        job.Status = FoundryJobStatus.Failed;
         job.CompletedAt = DateTimeOffset.Now;
         job.Error = error;
         _db.Jobs.Update(job);
@@ -156,12 +156,12 @@ public sealed class OfficeJobStore
     {
         var cutoff = DateTimeOffset.Now - staleThreshold;
         var staleJobs = _db.Jobs.Query()
-            .Where(j => j.Status == OfficeJobStatus.Running && j.StartedAt != null && j.StartedAt < cutoff)
+            .Where(j => j.Status == FoundryJobStatus.Running && j.StartedAt != null && j.StartedAt < cutoff)
             .ToList();
 
         foreach (var job in staleJobs)
         {
-            job.Status = OfficeJobStatus.Failed;
+            job.Status = FoundryJobStatus.Failed;
             job.CompletedAt = DateTimeOffset.Now;
             job.Error = $"Recovered after broker restart. Job was running since {job.StartedAt:O} and exceeded stale threshold of {staleThreshold.TotalMinutes} minutes.";
             _db.Jobs.Update(job);
@@ -178,7 +178,7 @@ public sealed class OfficeJobStore
     {
         var job = _db.Jobs.FindOne(j => j.Id == jobId);
         if (job is null) return false;
-        if (job.Status is not (OfficeJobStatus.Succeeded or OfficeJobStatus.Failed))
+        if (job.Status is not (FoundryJobStatus.Succeeded or FoundryJobStatus.Failed))
             return false;
 
         return _db.Jobs.Delete(job.Id);
@@ -193,7 +193,7 @@ public sealed class OfficeJobStore
     {
         var oldJobs = _db.Jobs.Query()
             .Where(j =>
-                (j.Status == OfficeJobStatus.Succeeded || j.Status == OfficeJobStatus.Failed)
+                (j.Status == FoundryJobStatus.Succeeded || j.Status == FoundryJobStatus.Failed)
                 && j.CreatedAt < cutoff)
             .ToList();
 
@@ -208,7 +208,7 @@ public sealed class OfficeJobStore
     /// <summary>
     /// Lists jobs filtered by status, most recent first.
     /// </summary>
-    public IReadOnlyList<OfficeJob> ListByStatus(string status, int count = 50)
+    public IReadOnlyList<FoundryJob> ListByStatus(string status, int count = 50)
     {
         return _db.Jobs.Query()
             .Where(j => j.Status == status)
@@ -240,7 +240,7 @@ public sealed class OfficeJobStore
     public double? GetAverageDuration()
     {
         var succeeded = _db.Jobs.Query()
-            .Where(j => j.Status == OfficeJobStatus.Succeeded
+            .Where(j => j.Status == FoundryJobStatus.Succeeded
                         && j.StartedAt != null
                         && j.CompletedAt != null)
             .ToList();
@@ -258,7 +258,7 @@ public sealed class OfficeJobStore
     public int GetCompletedSince(DateTimeOffset cutoff)
     {
         return _db.Jobs.Count(j =>
-            (j.Status == OfficeJobStatus.Succeeded || j.Status == OfficeJobStatus.Failed)
+            (j.Status == FoundryJobStatus.Succeeded || j.Status == FoundryJobStatus.Failed)
             && j.CompletedAt != null
             && j.CompletedAt >= cutoff);
     }
@@ -266,16 +266,16 @@ public sealed class OfficeJobStore
     /// <summary>
     /// Returns a structured metrics snapshot for the job system.
     /// </summary>
-    public OfficeJobMetrics GetMetrics()
+    public FoundryJobMetrics GetMetrics()
     {
         var now = DateTimeOffset.Now;
-        return new OfficeJobMetrics
+        return new FoundryJobMetrics
         {
             TotalJobs = GetTotalCount(),
-            QueuedCount = GetCountByStatus(OfficeJobStatus.Queued),
-            RunningCount = GetCountByStatus(OfficeJobStatus.Running),
-            SucceededCount = GetCountByStatus(OfficeJobStatus.Succeeded),
-            FailedCount = GetCountByStatus(OfficeJobStatus.Failed),
+            QueuedCount = GetCountByStatus(FoundryJobStatus.Queued),
+            RunningCount = GetCountByStatus(FoundryJobStatus.Running),
+            SucceededCount = GetCountByStatus(FoundryJobStatus.Succeeded),
+            FailedCount = GetCountByStatus(FoundryJobStatus.Failed),
             AverageDurationSeconds = GetAverageDuration(),
             CompletedLastHour = GetCompletedSince(now.AddHours(-1)),
             CompletedLastDay = GetCompletedSince(now.AddDays(-1)),

@@ -1,9 +1,9 @@
-using DailyDesk.Models;
-using DailyDesk.Services;
+using Foundry.Models;
+using Foundry.Services;
 using OllamaSharp;
 using Xunit;
 
-namespace DailyDesk.Core.Tests;
+namespace Foundry.Core.Tests;
 
 /// <summary>
 /// Unit tests for KnowledgeCoordinator covering document indexing and status retrieval.
@@ -47,7 +47,7 @@ public sealed class KnowledgeCoordinatorTests
     private static VectorStoreService BuildUnavailableVectorStore() =>
         new VectorStoreService(host: "localhost", port: 16335); // non-default port, not running
 
-    private static KnowledgeCoordinator BuildCoordinator(OfficeDatabase db)
+    private static KnowledgeCoordinator BuildCoordinator(FoundryDatabase db)
     {
         return new KnowledgeCoordinator(
             BuildUnavailableEmbeddingService(),
@@ -73,7 +73,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_EmptyList_ReturnsZeroCounts()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var result = await coordinator.RunKnowledgeIndexAsync([]);
@@ -88,7 +88,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_DocumentWithNoText_IsSkipped()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var documents = new[]
@@ -108,7 +108,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_DocumentWithWhitespaceOnlyText_IsSkipped()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var documents = new[]
@@ -127,7 +127,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_DocumentWithOnlyEmptyExtractedText_UsesSummaryFallback()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         // ExtractedText is empty — coordinator falls back to Summary as text content.
@@ -148,7 +148,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_AlreadyIndexedDocument_IsSkipped()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         // Pre-mark the document as indexed
@@ -179,7 +179,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_ChangedDocument_SkipsAlreadyIndexedThenAttempts()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         const string path = "doc/changed.md";
@@ -208,7 +208,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_EmbeddingUnavailable_CountsAsFailed()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var documents = new[]
@@ -228,7 +228,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_MixedDocuments_CountsAreCorrect()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         // Pre-index one document
@@ -260,7 +260,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_SetsIndexedAtTimestamp()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var before = DateTimeOffset.Now.AddSeconds(-1);
@@ -273,7 +273,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_TopicsIncludedInMetadata_DocumentHasTopics()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var document = new LearningDocument
@@ -302,7 +302,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task GetKnowledgeIndexStatusAsync_ZeroDocuments_ReturnsCorrectCounts()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var status = await coordinator.GetKnowledgeIndexStatusAsync(totalDocuments: 0);
@@ -315,7 +315,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task GetKnowledgeIndexStatusAsync_ReflectsTotalDocumentsParameter()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var status = await coordinator.GetKnowledgeIndexStatusAsync(totalDocuments: 42);
@@ -327,7 +327,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task GetKnowledgeIndexStatusAsync_ReturnsIndexedCountFromStore()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var indexStore = new KnowledgeIndexStore(db);
 
         indexStore.MarkIndexed("doc/a.md", "hash-a", "vec-a");
@@ -348,7 +348,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task GetKnowledgeIndexStatusAsync_QdrantUnreachable_ReturnsUnreachableStatus()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         var status = await coordinator.GetKnowledgeIndexStatusAsync(totalDocuments: 10);
@@ -363,7 +363,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task GetKnowledgeIndexStatusAsync_ReflectsIncrementalIndexing()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var indexStore = new KnowledgeIndexStore(db);
         var coordinator = new KnowledgeCoordinator(
             BuildUnavailableEmbeddingService(),
@@ -387,7 +387,7 @@ public sealed class KnowledgeCoordinatorTests
     public async Task RunKnowledgeIndexAsync_PreCancelledToken_ThrowsOperationCancelled()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = BuildCoordinator(db);
 
         using var cts = new CancellationTokenSource();

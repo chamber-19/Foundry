@@ -1,4 +1,4 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 public sealed class DailyRunTemplate
 {

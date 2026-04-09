@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 public sealed class LearningDocument
 {

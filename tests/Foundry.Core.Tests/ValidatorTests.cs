@@ -1,9 +1,9 @@
-using DailyDesk.Broker;
-using DailyDesk.Services;
+using Foundry.Broker;
+using Foundry.Services;
 using Xunit;
 using System.Collections.Generic;
 
-namespace DailyDesk.Core.Tests;
+namespace Foundry.Core.Tests;
 
 public class ChatValidatorTests
 {

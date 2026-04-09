@@ -1,4 +1,4 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Represents a scheduled job definition stored in LiteDB.

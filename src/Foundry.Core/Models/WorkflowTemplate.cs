@@ -1,4 +1,4 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Represents a reusable operator workflow template.

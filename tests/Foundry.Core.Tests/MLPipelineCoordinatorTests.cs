@@ -1,8 +1,8 @@
-using DailyDesk.Models;
-using DailyDesk.Services;
+using Foundry.Models;
+using Foundry.Services;
 using Xunit;
 
-namespace DailyDesk.Core.Tests;
+namespace Foundry.Core.Tests;
 
 [CollectionDefinition("CoordinatorTests")]
 public class CoordinatorTestsCollection { }
@@ -66,7 +66,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunMLEmbeddingsAsync_FallbackEngine_ReturnsResult()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -82,7 +82,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunMLEmbeddingsAsync_PersistsResultToStore()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var store = new MLResultStore(db);
         var coordinator = new MLPipelineCoordinator(BuildFallbackMlService(), store);
 
@@ -97,7 +97,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunMLEmbeddingsAsync_WithQuery_ReturnsResult()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -116,7 +116,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_ReturnsAllThreeResults()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -139,7 +139,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_PersistsAllResultsToStore()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var store = new MLResultStore(db);
         var coordinator = new MLPipelineCoordinator(BuildFallbackMlService(), store);
 
@@ -158,7 +158,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_AllEnginesAreFallback_WhenNoPythonOrOnnx()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -174,7 +174,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_ExportPathPointsToExistingFile()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -188,7 +188,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_LastRunTimestampUpdatedInStore()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var store = new MLResultStore(db);
         var coordinator = new MLPipelineCoordinator(BuildFallbackMlService(), store);
 
@@ -208,7 +208,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task ExportSuiteArtifactsAsync_ReturnsBundleWithFallback()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -227,7 +227,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task ExportSuiteArtifactsAsync_WritesArtifactFileToDisk()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));
@@ -251,7 +251,7 @@ public sealed class MLPipelineCoordinatorTests
     public async Task RunFullMLPipelineAsync_PreCancelledToken_ThrowsOperationCancelled()
     {
         using var tmpDir = new TempDirectory();
-        var db = new OfficeDatabase(tmpDir.Path);
+        var db = new FoundryDatabase(tmpDir.Path);
         var coordinator = new MLPipelineCoordinator(
             BuildFallbackMlService(),
             new MLResultStore(db));

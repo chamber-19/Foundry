@@ -1,10 +1,10 @@
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Domain coordinator for knowledge operations: document indexing and context status retrieval.
-/// Extracted from OfficeBrokerOrchestrator per TECHNICAL-DEBT.md.
+/// Extracted from FoundryOrchestrator per TECHNICAL-DEBT.md.
 /// </summary>
 public sealed class KnowledgeCoordinator
 {

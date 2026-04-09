@@ -6,7 +6,7 @@ using OllamaSharp.Models;
 using OllamaSharp.Models.Chat;
 using Polly;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 public sealed class OllamaService : IModelProvider
 {

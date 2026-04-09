@@ -1,19 +1,19 @@
-namespace DailyDesk.Models;
+namespace Foundry.Models;
 
 /// <summary>
 /// Represents an async job record with lifecycle tracking.
 /// Persisted in the LiteDB jobs collection.
 /// </summary>
-public sealed class OfficeJob
+public sealed class FoundryJob
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Type { get; set; } = string.Empty;
-    public string Status { get; set; } = OfficeJobStatus.Queued;
+    public string Status { get; set; } = FoundryJobStatus.Queued;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 
     /// <summary>
     /// Monotonically increasing counter assigned at enqueue time.
-    /// Used as a secondary sort key in <see cref="OfficeJobStore.DequeueNext"/> to guarantee
+    /// Used as a secondary sort key in <see cref="FoundryJobStore.DequeueNext"/> to guarantee
     /// stable FIFO ordering even when multiple jobs share the same <see cref="CreatedAt"/>
     /// timestamp (e.g. jobs enqueued within the same clock tick).
     /// Legacy records persisted before this field was introduced have the default value 0
@@ -31,7 +31,7 @@ public sealed class OfficeJob
 /// <summary>
 /// Constants for job status values.
 /// </summary>
-public static class OfficeJobStatus
+public static class FoundryJobStatus
 {
     public const string Queued = "queued";
     public const string Running = "running";
@@ -42,7 +42,7 @@ public static class OfficeJobStatus
 /// <summary>
 /// Constants for job type values.
 /// </summary>
-public static class OfficeJobType
+public static class FoundryJobType
 {
     public const string MLAnalytics = "ml-analytics";
     public const string MLForecast = "ml-forecast";

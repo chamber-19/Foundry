@@ -1,13 +1,13 @@
-using DailyDesk.Services;
+using Foundry.Services;
 using Microsoft.Extensions.Logging;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 internal static class HealthEndpoints
 {
     public static void MapHealthEndpoints(this IEndpointRouteBuilder app, ILogger logger)
     {
-        app.MapGet("/health", async (OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapGet("/health", async (FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
@@ -15,10 +15,10 @@ internal static class HealthEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker health endpoint failed.");
+                logger.LogError(exception, "Foundry broker health endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
-                    title: "Office broker health check failed",
+                    title: "Foundry broker health check failed",
                     statusCode: StatusCodes.Status500InternalServerError
                 );
             }
@@ -26,7 +26,7 @@ internal static class HealthEndpoints
 
         // --- Detailed Health Check (Phase 4) ---
 
-        app.MapGet("/api/health", async (OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapGet("/api/health", async (FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
@@ -43,7 +43,7 @@ internal static class HealthEndpoints
             }
         });
 
-        app.MapGet("/api/state", async (OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+        app.MapGet("/api/state", async (FoundryOrchestrator orchestrator, CancellationToken ct) =>
         {
             try
             {
@@ -51,10 +51,10 @@ internal static class HealthEndpoints
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Office broker state endpoint failed.");
+                logger.LogError(exception, "Foundry broker state endpoint failed.");
                 return Results.Problem(
                     detail: "An unexpected error occurred. See server logs for details.",
-                    title: "Failed to build office state",
+                    title: "Failed to build Foundry state",
                     statusCode: StatusCodes.Status500InternalServerError
                 );
             }

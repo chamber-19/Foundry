@@ -1,6 +1,6 @@
-using DailyDesk.Models;
+using Foundry.Models;
 
-namespace DailyDesk.Services;
+namespace Foundry.Services;
 
 /// <summary>
 /// Manages workflow template persistence via LiteDB.
@@ -8,9 +8,9 @@ namespace DailyDesk.Services;
 /// </summary>
 public sealed class WorkflowStore
 {
-    private readonly OfficeDatabase _db;
+    private readonly FoundryDatabase _db;
 
-    public WorkflowStore(OfficeDatabase db)
+    public WorkflowStore(FoundryDatabase db)
     {
         _db = db;
         SeedBuiltInTemplates();
@@ -77,9 +77,9 @@ public sealed class WorkflowStore
                 FailurePolicy = WorkflowFailurePolicy.Continue,
                 Steps =
                 [
-                    new WorkflowStep { JobType = OfficeJobType.MLPipeline, Label = "Run ML Pipeline" },
-                    new WorkflowStep { JobType = OfficeJobType.MLExportArtifacts, Label = "Export Suite Artifacts" },
-                    new WorkflowStep { JobType = OfficeJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
+                    new WorkflowStep { JobType = FoundryJobType.MLPipeline, Label = "Run ML Pipeline" },
+                    new WorkflowStep { JobType = FoundryJobType.MLExportArtifacts, Label = "Export Suite Artifacts" },
+                    new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
                 ],
             },
             new WorkflowTemplate
@@ -90,9 +90,9 @@ public sealed class WorkflowStore
                 FailurePolicy = WorkflowFailurePolicy.Continue,
                 Steps =
                 [
-                    new WorkflowStep { JobType = OfficeJobType.MLAnalytics, Label = "Run Learning Analytics" },
-                    new WorkflowStep { JobType = OfficeJobType.MLEmbeddings, Label = "Generate Document Embeddings" },
-                    new WorkflowStep { JobType = OfficeJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
+                    new WorkflowStep { JobType = FoundryJobType.MLAnalytics, Label = "Run Learning Analytics" },
+                    new WorkflowStep { JobType = FoundryJobType.MLEmbeddings, Label = "Generate Document Embeddings" },
+                    new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
                 ],
             },
             new WorkflowTemplate
@@ -103,8 +103,8 @@ public sealed class WorkflowStore
                 FailurePolicy = WorkflowFailurePolicy.Abort,
                 Steps =
                 [
-                    new WorkflowStep { JobType = OfficeJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
-                    new WorkflowStep { JobType = OfficeJobType.MLEmbeddings, Label = "Refresh Document Embeddings" },
+                    new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
+                    new WorkflowStep { JobType = FoundryJobType.MLEmbeddings, Label = "Refresh Document Embeddings" },
                 ],
             },
         };

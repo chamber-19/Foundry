@@ -1,21 +1,21 @@
-using DailyDesk.Services;
+using Foundry.Services;
 
-namespace DailyDesk.Broker;
+namespace Foundry.Broker;
 
 /// <summary>
 /// Background service that checks job schedules every minute and enqueues
-/// due jobs via OfficeJobStore. Marks each schedule as run and computes the
+/// due jobs via FoundryJobStore. Marks each schedule as run and computes the
 /// next run time after enqueuing.
 /// </summary>
 public sealed class JobSchedulerWorker : BackgroundService
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(1);
 
-    private readonly OfficeBrokerOrchestrator _orchestrator;
+    private readonly FoundryOrchestrator _orchestrator;
     private readonly ILogger<JobSchedulerWorker> _logger;
 
     public JobSchedulerWorker(
-        OfficeBrokerOrchestrator orchestrator,
+        FoundryOrchestrator orchestrator,
         ILogger<JobSchedulerWorker> logger)
     {
         _orchestrator = orchestrator;
