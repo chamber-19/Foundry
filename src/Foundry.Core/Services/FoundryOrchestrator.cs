@@ -480,10 +480,9 @@ public sealed class FoundryOrchestrator
 
                 try
                 {
-                    var docs = await _knowledgeImportService.ImportAsync(path, cancellationToken);
-                    if (docs.Count > 0)
+                    var library = await _knowledgeImportService.LoadAsync(path, cancellationToken: cancellationToken);
+                    if (library.Documents.Count > 0)
                     {
-                        _learningLibrary.Documents.AddRange(docs);
                         importedPaths.Add(path);
                     }
                     else
@@ -628,7 +627,7 @@ public sealed class FoundryOrchestrator
     private async Task<IReadOnlyList<string>> LoadInstalledModelsSafeAsync(CancellationToken cancellationToken)
     {
         return await RunWithTimeoutFallbackAsync(
-            () => _modelProvider.ListModelsAsync(cancellationToken),
+            () => _modelProvider.GetInstalledModelsAsync(cancellationToken),
             InstalledModelsLoadTimeout,
             Array.Empty<string>());
     }
@@ -636,7 +635,7 @@ public sealed class FoundryOrchestrator
     private async Task<LearningLibrary> LoadLearningLibrarySafeAsync(CancellationToken cancellationToken)
     {
         return await RunWithTimeoutFallbackAsync(
-            () => Task.FromResult(LearningLibrary.LoadFromPaths(_knowledgeLibraryPath, _additionalKnowledgePaths)),
+            () => _knowledgeImportService.LoadAsync(_knowledgeLibraryPath, _additionalKnowledgePaths),
             LearningLibraryLoadTimeout,
             new LearningLibrary());
     }

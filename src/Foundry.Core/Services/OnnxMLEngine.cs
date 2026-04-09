@@ -55,8 +55,7 @@ public sealed class OnnxMLEngine : IDisposable
     /// Returns null if the model is not available.
     /// </summary>
     public MLAnalyticsResult? RunAnalytics(
-        IReadOnlyList<TrainingAttemptRecord> attempts,
-        IReadOnlyList<OperatorActivityRecord> decisions)
+        IReadOnlyList<TrainingAttemptRecord> attempts)
     {
         if (!IsAnalyticsModelAvailable)
             return null;
@@ -141,7 +140,7 @@ public sealed class OnnxMLEngine : IDisposable
                 WeakTopics = weak.OrderBy(t => t.Accuracy).ToList(),
                 StrongTopics = strong.OrderByDescending(t => t.Accuracy).ToList(),
                 OverallReadiness = Math.Round(overallReadiness, 3),
-                OperatorPattern = BuildOperatorPattern(decisions),
+                OperatorPattern = BuildDefaultOperatorPattern(),
                 AdaptiveSchedule = BuildAdaptiveSchedule(weak),
                 ReadinessBreakdown = readinessBreakdown,
             };
@@ -468,33 +467,15 @@ public sealed class OnnxMLEngine : IDisposable
         return topics;
     }
 
-    private static MLOperatorPattern BuildOperatorPattern(IReadOnlyList<OperatorActivityRecord> decisions)
+    private static MLOperatorPattern BuildDefaultOperatorPattern()
     {
-        var approveCount = decisions.Count(d => d.EventType == "accepted");
-        var rejectCount = decisions.Count(d => d.EventType == "rejected");
-        var deferCount = decisions.Count(d => d.EventType == "deferred");
-        var total = approveCount + rejectCount + deferCount;
-
-        var approveRate = total > 0 ? (double)approveCount / total : 0;
-        var rejectRate = total > 0 ? (double)rejectCount / total : 0;
-
-        string pattern;
-        if (approveRate > 0.7)
-            pattern = "high-trust";
-        else if (rejectRate > 0.5)
-            pattern = "cautious";
-        else if (approveRate > 0.4 && rejectRate < 0.3)
-            pattern = "balanced";
-        else
-            pattern = "selective";
-
         return new MLOperatorPattern
         {
-            ApproveRate = Math.Round(approveRate, 3),
-            RejectRate = Math.Round(rejectRate, 3),
-            DeferRate = total > 0 ? Math.Round((double)deferCount / total, 3) : 0,
-            TotalDecisions = total,
-            Pattern = pattern,
+            ApproveRate = 0,
+            RejectRate = 0,
+            DeferRate = 0,
+            TotalDecisions = 0,
+            Pattern = "unknown",
         };
     }
 

@@ -45,7 +45,7 @@ public sealed class MLPipelineCoordinator
     /// </summary>
     public async Task<MLPipelineRunResult> RunFullMLPipelineAsync(
         IReadOnlyList<TrainingAttemptRecord> attempts,
-        IReadOnlyList<OperatorActivityRecord> decisions,
+        IReadOnlyList<object> decisions,
         IReadOnlyList<LearningDocument> documents,
         string stateRootPath,
         CancellationToken cancellationToken = default)

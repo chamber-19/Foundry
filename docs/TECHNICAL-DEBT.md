@@ -14,11 +14,11 @@ Each entry describes a **pressure area**: a part of the codebase that is functio
 
 These areas actively slow down new feature development and increase the risk of regression.
 
-### 1. OfficeBrokerOrchestrator — Monolithic Coordinator
+### 1. FoundryOrchestrator — Monolithic Coordinator
 
 | | |
 |---|---|
-| **Files** | `DailyDesk.Core/Services/OfficeBrokerOrchestrator.cs`, `DailyDesk.Core/Services/MLPipelineCoordinator.cs` |
+| **Files** | `Foundry.Core/Services/FoundryOrchestrator.cs`, `Foundry.Core/Services/MLPipelineCoordinator.cs` |
 | **Size** | ~3,850 lines |
 | **Phase introduced** | Phase 1 (grew through Phase 9) |
 
@@ -32,13 +32,13 @@ The orchestrator is the single entry point for every operation — ML pipelines,
 
 **Refactor direction:**
 Split into domain coordinators:
-- `ResearchCoordinator` — research jobs, watchlist, enrichment. ✅ Extracted to `DailyDesk.Core/Services/ResearchCoordinator.cs` but not yet delegated from `OfficeBrokerOrchestrator`.
-- `MLPipelineCoordinator` — ML job dispatch, result retrieval, export artifacts. ✅ Extracted and wired: `OfficeBrokerOrchestrator` now holds `_mlPipelineCoordinator` and delegates all ML pipeline methods to it.
-- `KnowledgeCoordinator` — import, indexing, context building. ✅ Extracted to `DailyDesk.Core/Services/KnowledgeCoordinator.cs` but not yet delegated from `OfficeBrokerOrchestrator`.
+- `ResearchCoordinator` — research jobs, watchlist, enrichment. ✅ Extracted to `Foundry.Core/Services/ResearchCoordinator.cs` but not yet delegated from `FoundryOrchestrator`.
+- `MLPipelineCoordinator` — ML job dispatch, result retrieval, export artifacts. ✅ Extracted and wired: `FoundryOrchestrator` now holds `_mlPipelineCoordinator` and delegates all ML pipeline methods to it.
+- `KnowledgeCoordinator` — import, indexing, context building. ✅ Extracted to `Foundry.Core/Services/KnowledgeCoordinator.cs` but not yet delegated from `FoundryOrchestrator`.
 
-Keep `OfficeBrokerOrchestrator` as a thin facade that delegates to these coordinators. The facade boundary means `Program.cs` endpoints do not change callers.
+Keep `FoundryOrchestrator` as a thin facade that delegates to these coordinators. The facade boundary means `Program.cs` endpoints do not change callers.
 
-**Prerequisite:** No blocking prerequisite. Wire `ResearchCoordinator` and `KnowledgeCoordinator` into `OfficeBrokerOrchestrator` the same way `MLPipelineCoordinator` was — constructor injection, then replace each direct implementation with a delegate call. Update existing tests that construct the orchestrator directly to pass the new coordinator dependencies.
+**Prerequisite:** No blocking prerequisite. Wire `ResearchCoordinator` and `KnowledgeCoordinator` into `FoundryOrchestrator` the same way `MLPipelineCoordinator` was — constructor injection, then replace each direct implementation with a delegate call. Update existing tests that construct the orchestrator directly to pass the new coordinator dependencies.
 
 ---
 
@@ -50,7 +50,7 @@ These areas add maintenance overhead but do not block current development.
 
 | | |
 |---|---|
-| **File** | `DailyDesk/Services/MLAnalyticsService.cs` |
+| **File** | `Foundry/Services/MLAnalyticsService.cs` |
 | **Phase introduced** | Phase 1 |
 | **Made redundant by** | Phase 3 (`MLResultStore`, LiteDB) |
 
@@ -60,7 +60,7 @@ These areas add maintenance overhead but do not block current development.
 **Why it is under pressure:**
 - `MLResultStore` (Phase 3) now persists the latest result for each ML type in LiteDB. Callers can retrieve a persistent, restart-safe result from `MLResultStore` at any time.
 - The in-memory cache and `MLResultStore` can diverge: a fresh run persisted to LiteDB will not be reflected in the in-memory cache until the TTL expires.
-- `InvalidateCache()` must be called explicitly after a job completes, creating a coordination requirement between `OfficeJobWorker` and `MLAnalyticsService`.
+- `InvalidateCache()` must be called explicitly after a job completes, creating a coordination requirement between `FoundryJobWorker` and `MLAnalyticsService`.
 
 **Refactor direction:**
 Remove the in-memory TTL cache from `MLAnalyticsService`. Replace the three `_cached*` field groups with a single call to `MLResultStore.GetLatest*(type)` where callers currently access cached results. Keep the `InvalidateCache()` method as a no-op stub temporarily so call sites compile without change, then remove it once all callers are updated.
@@ -73,7 +73,7 @@ Remove the in-memory TTL cache from `MLAnalyticsService`. Replace the three `_ca
 
 | | |
 |---|---|
-| **Files** | `DailyDesk.Broker/Endpoints/MLEndpoints.cs` |
+| **Files** | `Foundry.Broker/Endpoints/MLEndpoints.cs` |
 | **Phase introduced** | Phase 3 (async job model) |
 | **Removal condition** | WPF client fully migrated to job polling (Phase 9 complete) |
 
@@ -99,7 +99,7 @@ After confirming no active callers use `?sync=true`:
 
 | | |
 |---|---|
-| **File** | `DailyDesk/Services/MLAnalyticsService.cs` |
+| **File** | `Foundry/Services/MLAnalyticsService.cs` |
 | **Phase introduced** | Phase 7 (ONNX engine added alongside existing Python path) |
 
 **What it does now:**
@@ -123,7 +123,7 @@ After confirming no active callers use `?sync=true`:
 
 | | |
 |---|---|
-| **File** | `DailyDesk/Services/KnowledgeImportService.cs` |
+| **File** | `Foundry/Services/KnowledgeImportService.cs` |
 | **Phase introduced** | Phase 7 (Docling pipeline) |
 
 **What it does now:**
@@ -137,7 +137,7 @@ After confirming no active callers use `?sync=true`:
 
 **Refactor direction:**
 1. Validate `_pythonScriptPath` at construction time (or at `LoadAsync` startup) and log a clear warning if the script is absent, then continue with only built-in text/markdown extraction rather than throwing.
-2. Replace the hard-coded `64` with a configurable `MaxDocuments` property (default 64, settable via `DailyDeskSettings`).
+2. Replace the hard-coded `64` with a configurable `MaxDocuments` property (default 64, settable via `FoundrySettings`).
 3. Catch per-document extraction exceptions inside the loop, log the failure, and continue with a `LearningDocument` that carries only the filename and an error flag — so a single corrupt PDF does not abort the entire import.
 
 **Prerequisite:** No blocking prerequisite. Validate against the existing `KnowledgeImportServiceTests` suite after each sub-step.
@@ -152,7 +152,7 @@ These areas are well-understood technical debt that does not need immediate acti
 
 | | |
 |---|---|
-| **Files** | `DailyDesk/Services/OperatorMemoryStore.cs`, `DailyDesk.Core/Services/OfficeSessionStateStore.cs` |
+| **Files** | `Foundry/Services/OperatorMemoryStore.cs`, `Foundry.Core/Services/OfficeSessionStateStore.cs` |
 | **Phase introduced** | Phase 2 (LiteDB migration) |
 
 **What it does now:**
@@ -177,7 +177,7 @@ Once LiteDB has been proven stable across multiple workstations:
 
 | | |
 |---|---|
-| **File** | `DailyDesk/Services/OnnxMLEngine.cs` |
+| **File** | `Foundry/Services/OnnxMLEngine.cs` |
 | **Phase introduced** | Phase 7 (ONNX in-process engine) |
 
 **What it does now:**
@@ -199,7 +199,7 @@ Once LiteDB has been proven stable across multiple workstations:
 
 | | |
 |---|---|
-| **Files** | `DailyDesk/ViewModels/MainViewModel.cs`, `DailyDesk/ViewModels/MainViewModel.Operator.cs`, `DailyDesk/ViewModels/MainViewModel.Workflow.cs`, `DailyDesk/ViewModels/MainViewModel.OfficeChat.cs`, `DailyDesk/ViewModels/MainViewModel.OfficeDesks.cs`, `DailyDesk/ViewModels/MainViewModel.Guide.cs` |
+| **Files** | `Foundry/ViewModels/MainViewModel.cs`, `Foundry/ViewModels/MainViewModel.Operator.cs`, `Foundry/ViewModels/MainViewModel.Workflow.cs`, `Foundry/ViewModels/MainViewModel.OfficeChat.cs`, `Foundry/ViewModels/MainViewModel.OfficeDesks.cs`, `Foundry/ViewModels/MainViewModel.Guide.cs` |
 | **Combined size** | ~4,200+ lines |
 | **Phase introduced** | Phase 1 (grew through Phase 9) |
 
@@ -241,4 +241,4 @@ Keep a record of pressure areas that have been resolved so contributors understa
 | WPF client blocking on ML calls | Phase 9 | Added `JobPollingService` with async poll loop |
 | Validators.cs flat file vs. convention | Tech Debt (chunk7) | Completed domain split: added `Validators/MLValidators.cs` and `Validators/ScheduleValidators.cs` alongside pre-existing `ChatValidators.cs`; deleted root-level `Validators.cs` |
 | PHASES-ROADMAP.md stale phase status | Tech Debt (chunk issue) | Updated status table: Phase 4 → ✅ Complete (health monitoring, JobRetentionWorker, PingAsync); Phase 5 → ✅ Complete (EmbeddingService, VectorStoreService, KnowledgeIndexStore) |
-| Broker Program.cs — All Endpoints in One File | Tech Debt (chunk issue) | Extracted 30+ endpoints into 8 dedicated `IEndpointRouteBuilder` extension files under `DailyDesk.Broker/Endpoints/`; request records co-located with their handlers; `Program.cs` reduced to ~70 lines of infrastructure setup |
+| Broker Program.cs — All Endpoints in One File | Tech Debt (chunk issue) | Extracted 30+ endpoints into 8 dedicated `IEndpointRouteBuilder` extension files under `Foundry.Broker/Endpoints/`; request records co-located with their handlers; `Program.cs` reduced to ~70 lines of infrastructure setup |

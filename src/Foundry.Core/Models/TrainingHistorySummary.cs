@@ -8,8 +8,6 @@ public sealed class TrainingHistorySummary
     public IReadOnlyList<TopicMasterySummary> WeakTopics { get; init; } = Array.Empty<TopicMasterySummary>();
     public IReadOnlyList<TrainingAttemptRecord> RecentAttempts { get; init; } = Array.Empty<TrainingAttemptRecord>();
     public IReadOnlyList<ReviewRecommendation> ReviewRecommendations { get; init; } = Array.Empty<ReviewRecommendation>();
-    public IReadOnlyList<OralDefenseAttemptRecord> RecentDefenseAttempts { get; init; } = Array.Empty<OralDefenseAttemptRecord>();
-    public IReadOnlyList<SessionReflectionRecord> RecentReflections { get; init; } = Array.Empty<SessionReflectionRecord>();
 
     public string OverallSummary
     {
@@ -37,35 +35,6 @@ public sealed class TrainingHistorySummary
             var dueNow = ReviewRecommendations.Count(item => item.IsDue);
             var soon = ReviewRecommendations.Count(item => !item.IsDue && item.DueAt <= DateTimeOffset.Now.AddDays(2));
             return $"{dueNow} due now, {soon} due soon, {ReviewRecommendations.Count} tracked review targets.";
-        }
-    }
-
-    public string DefenseSummary
-    {
-        get
-        {
-            if (RecentDefenseAttempts.Count == 0)
-            {
-                return "No scored oral-defense history yet.";
-            }
-
-            var totalScore = RecentDefenseAttempts.Sum(item => item.TotalScore);
-            var maxScore = RecentDefenseAttempts.Sum(item => item.MaxScore);
-            var ratio = maxScore == 0 ? 0 : (double)totalScore / maxScore;
-            return $"{RecentDefenseAttempts.Count} recent defense attempts, {totalScore}/{maxScore} total ({ratio:P0}).";
-        }
-    }
-
-    public string ReflectionSummary
-    {
-        get
-        {
-            if (RecentReflections.Count == 0)
-            {
-                return "No saved reflections yet.";
-            }
-
-            return $"Latest reflection: {RecentReflections[0].DisplaySummary}";
         }
     }
 }
