@@ -2,7 +2,7 @@
 Foundry Discord Bot — sole operator interface for the Foundry ML pipeline.
 
 Connects to the Foundry broker API and posts results/alerts to Discord channels.
-Commands are sent via Discord messages and forwarded to the broker.
+Slash commands are registered to a single guild on startup.
 """
 
 import json
@@ -12,8 +12,8 @@ import sys
 
 try:
     import discord
-    from discord.ext import commands
-    import requests
+    from discord import app_commands
+    import aiohttp
 except ImportError:
     print("Missing dependencies. Install with: pip install -r requirements.txt")
     sys.exit(1)
@@ -37,80 +37,99 @@ def load_config() -> dict:
 config = load_config()
 BROKER_URL = config.get("broker_url", DEFAULT_BROKER_URL)
 TOKEN = config.get("token") or os.environ.get("FOUNDRY_DISCORD_TOKEN")
+GUILD_ID = config.get("guild_id") or os.environ.get("FOUNDRY_BOT_GUILD_ID", "0")
 
 intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = discord.Client(intents=intents)
+tree = app_commands.CommandTree(bot)
+guild = discord.Object(id=int(GUILD_ID))
+http_session: aiohttp.ClientSession | None = None
+
+if GUILD_ID == "0":
+    logger.warning("No guild_id configured. Set guild_id in bot_config.json or FOUNDRY_BOT_GUILD_ID env var.")
 
 
 @bot.event
 async def on_ready():
-    logger.info("Foundry bot connected as %s", bot.user)
+    global http_session
+    if http_session is None or http_session.closed:
+        http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+    await tree.sync(guild=guild)
+    logger.info("Foundry bot connected as %s — slash commands synced", bot.user)
 
 
-@bot.command(name="health")
-async def health(ctx):
-    """Check Foundry broker health."""
+@tree.command(name="health", description="Check Foundry broker health", guild=guild)
+async def health(interaction: discord.Interaction):
     try:
-        resp = requests.get(f"{BROKER_URL}/health", timeout=10)
-        data = resp.json()
-        await ctx.send(f"**Foundry Health**: {data.get('status', 'unknown')}")
+        async with http_session.get(f"{BROKER_URL}/health") as resp:
+            data = await resp.json()
+        await interaction.response.send_message(f"**Foundry Health**: {data.get('status', 'unknown')}")
     except Exception as e:
-        await ctx.send(f"❌ Health check failed: {e}")
+        await interaction.response.send_message(f"❌ Health check failed: {e}")
 
 
-@bot.command(name="status")
-async def status(ctx):
-    """Get Foundry pipeline status."""
+@tree.command(name="status", description="Get Foundry pipeline status", guild=guild)
+async def status(interaction: discord.Interaction):
     try:
-        resp = requests.get(f"{BROKER_URL}/api/state", timeout=10)
-        data = resp.json()
+        async with http_session.get(f"{BROKER_URL}/api/state") as resp:
+            data = await resp.json()
         ml = data.get("ml", {})
-        await ctx.send(
+        await interaction.response.send_message(
             f"**ML Pipeline**: {'Enabled' if ml.get('enabled') else 'Disabled'}\n"
             f"**Summary**: {ml.get('summary', 'N/A')}"
         )
     except Exception as e:
-        await ctx.send(f"❌ Status check failed: {e}")
+        await interaction.response.send_message(f"❌ Status check failed: {e}")
 
 
-@bot.command(name="run")
-async def run_pipeline(ctx, pipeline_type: str = "pipeline"):
-    """Trigger an ML pipeline run. Usage: !run [pipeline|embeddings|export|index]"""
+PIPELINE_CHOICES = [
+    app_commands.Choice(name="pipeline", value="pipeline"),
+    app_commands.Choice(name="embeddings", value="embeddings"),
+    app_commands.Choice(name="export", value="export"),
+    app_commands.Choice(name="index", value="index"),
+]
+
+
+@tree.command(name="run", description="Trigger an ML pipeline run", guild=guild)
+@app_commands.describe(pipeline_type="Pipeline type to run")
+@app_commands.choices(pipeline_type=PIPELINE_CHOICES)
+async def run_pipeline(interaction: discord.Interaction, pipeline_type: app_commands.Choice[str] = None):
+    selected = pipeline_type.value if pipeline_type else "pipeline"
     endpoint_map = {
         "pipeline": "/api/ml/pipeline",
         "embeddings": "/api/ml/embeddings",
         "export": "/api/ml/export-artifacts",
         "index": "/api/ml/index-knowledge",
     }
-    endpoint = endpoint_map.get(pipeline_type)
+    endpoint = endpoint_map.get(selected)
     if not endpoint:
-        await ctx.send(f"Unknown pipeline type: `{pipeline_type}`. Use: {', '.join(endpoint_map.keys())}")
+        await interaction.response.send_message(
+            f"Unknown pipeline type: `{selected}`. Use: {', '.join(endpoint_map.keys())}"
+        )
         return
 
     try:
-        resp = requests.post(f"{BROKER_URL}{endpoint}", timeout=10)
-        data = resp.json()
+        async with http_session.post(f"{BROKER_URL}{endpoint}") as resp:
+            data = await resp.json()
         job_id = data.get("jobId", "N/A")
-        await ctx.send(f"✅ Job queued: `{job_id}` (type: {pipeline_type})")
+        await interaction.response.send_message(f"✅ Job queued: `{job_id}` (type: {selected})")
     except Exception as e:
-        await ctx.send(f"❌ Failed to trigger {pipeline_type}: {e}")
+        await interaction.response.send_message(f"❌ Failed to trigger {selected}: {e}")
 
 
-@bot.command(name="jobs")
-async def list_jobs(ctx):
-    """List recent jobs."""
+@tree.command(name="jobs", description="List recent jobs", guild=guild)
+async def list_jobs(interaction: discord.Interaction):
     try:
-        resp = requests.get(f"{BROKER_URL}/api/jobs", timeout=10)
-        data = resp.json()
+        async with http_session.get(f"{BROKER_URL}/api/jobs") as resp:
+            data = await resp.json()
         jobs = data.get("jobs", [])[:5]
         if not jobs:
-            await ctx.send("No recent jobs.")
+            await interaction.response.send_message("No recent jobs.")
             return
         lines = [f"• `{j['id'][:8]}` — {j['type']} — **{j['status']}**" for j in jobs]
-        await ctx.send("**Recent Jobs:**\n" + "\n".join(lines))
+        await interaction.response.send_message("**Recent Jobs:**\n" + "\n".join(lines))
     except Exception as e:
-        await ctx.send(f"❌ Failed to list jobs: {e}")
+        await interaction.response.send_message(f"❌ Failed to list jobs: {e}")
 
 
 if __name__ == "__main__":
