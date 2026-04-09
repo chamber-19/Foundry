@@ -1,195 +1,123 @@
-# Office — ML-Powered PR Scoring Pipeline
+# Foundry — ML Scoring & Reasoning Pipeline
 
-Office is an ML-powered PR scoring and training pipeline with a two-machine distributed setup. It continuously scores pull requests using a local Ollama LLM, feeds the scores into a training feature schema, retrains a gradient-boosted scoring model, and keeps a RAG index updated for context retrieval.
+Foundry is a standalone three-engine ML pipeline that produces versioned artifacts for [Suite](https://github.com/Koraji95-coder/Suite). It scores pull requests, generates semantic embeddings for knowledge indexing, and runs time-series accuracy forecasting — all orchestrated through an ASP.NET Core broker API with a Discord bot as the sole operator interface.
 
-## Layout
+## What Foundry Does
 
-- `DailyDesk/`: WPF desktop application (operator UI and agent desks)
-- `DailyDesk.Broker/`: ASP.NET Core web service broker (localhost:57420)
-- `DailyDesk.Core/`: Shared business logic and ML pipeline models
-- `DailyDesk.Core.Tests/`: Unit tests (xUnit)
-- `scripts/`: PR scoring pipeline, RAG system, and ML training scripts
-- `schemas/`: Training feature schema (`feature-v1.json`)
-- `Knowledge/`: Repo-owned seed knowledge for the RAG index
-- `Docs/`: Architecture, conventions, and library decisions
+### Three-Engine ML Pipeline
+The engines run in sequence with explicit cross-feed via an **EngineHandoff** contract:
 
-## ML Scoring Pipeline
+1. **Scikit-learn** — Clustering, classification, PR scoring, topic grouping, operator readiness prediction
+2. **PyTorch** — Semantic embeddings for knowledge indexing via Qdrant, document similarity
+3. **TensorFlow** — Time-series accuracy forecasting, plateau detection, anomaly alerts, mastery estimation
 
-The pipeline scores every open PR using a local Ollama model, records the scores as training features, and retrains the scoring model on a schedule.
+Each engine has heuristic fallbacks when its ML library isn't installed.
+
+### PR Scoring Engine
+- Deterministic gates: CI pass, duplicate check
+- Weighted signals: tests, PR size, commit format, churn risk
+- LLM adjustment via local Ollama
+
+### RAG Pipeline
+- ChromaDB/Qdrant document indexing + vector search
+- Ollama-powered query answering
+
+### Broker API
+- ASP.NET Core minimal API on `localhost:57420`
+- ML endpoints, job scheduling, health checks
+- Async job queue with LiteDB persistence
+
+## Project Layout
 
 ```
-auto-pr-review.ps1  →  feature-v1.json  →  retrain.py  →  scoring model
-        ↑                                                         ↓
-    RAG context (rag/)                                  replay-historical.ps1
+Foundry/
+├── src/
+│   ├── Foundry.Core/           # Shared models + ML services (class library)
+│   │   ├── Models/             # Data models (ML results, jobs, settings)
+│   │   └── Services/           # ML services, coordinators, persistence
+│   └── Foundry.Broker/         # ASP.NET Core API host
+│       └── Endpoints/          # HTTP endpoint definitions
+├── tests/
+│   └── Foundry.Core.Tests/     # xUnit tests
+├── scripts/
+│   ├── scoring/                # PR scoring (preprocessor, schema validation, retraining)
+│   ├── rag/                    # RAG pipeline (indexer, search, query)
+│   ├── ml/                     # ML artifacts, embeddings, document preprocessing
+│   ├── automation/             # PR review, issue scanning, Discord briefs, scheduled tasks
+│   └── commands/               # Operator commands (review, approve, reject, scan, status)
+├── bot/                        # Discord bot — sole operator interface
+├── schemas/                    # Feature schema (frozen training data validation)
+├── docs/                       # Architecture, conventions, roadmap
+└── Foundry.sln                 # Solution file
 ```
 
-### Key Scripts
+## Quick Start
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/auto-pr-review.ps1` | Live scoring engine — reviews all open PRs with Ollama |
-| `scripts/scoring/replay-historical.ps1` | Replay historical PR scores for model training |
-| `scripts/scoring/pull-training-data.ps1` | Pull training data from GitHub |
-| `scripts/scoring/retrain.py` | Retrain the gradient-boosted scoring model |
-| `scripts/scoring/validate_schema.py` | Validate feature schema against `feature-v1.json` |
-| `scripts/rag/index.py` | Index repository content into the RAG vector store |
-| `scripts/rag/query.py` | Query the RAG index for context retrieval |
+### Prerequisites
+- .NET 10 SDK
+- Python 3.10+ (for ML scripts)
+- Ollama (for LLM and embedding inference)
+- Qdrant (optional, for vector search)
 
-### Training Feature Schema
-
-`schemas/feature-v1.json` defines the features used for model training:
-
-- PR metadata (size, file count, author history)
-- LLM score from Ollama review
-- Merge outcome (merged / closed / still open)
-
-### Two-Machine Setup
-
-- **DUSTIN** (primary): Runs `auto-pr-review.ps1` + Ollama (qwen3:14b), handles scoring
-- **Machine 2** (secondary): Runs the lighter `qwen3:8b` model, handles training replay
-
-## Agent Desks
-
-Office includes five Ollama-powered agent desks, each with its own focus:
-
-| Route | Title | Purpose |
-|-------|-------|---------|
-| `chief` | Chief of Staff | Routes the day across Suite, engineering, and growth |
-| `engineering` | Engineering Desk | Technical analysis and code review support |
-| `suite` | Suite Context | Read-only awareness of Suite repo and runtime signals |
-| `business` | Growth Ops | Monetization and offer framing |
-| `ml` | ML Engineer | ML pipeline status, forecasts, and Suite-ready artifacts |
-
-## Embedded ML Pipeline
-
-Office includes a local machine learning pipeline that analyzes operator data and produces actionable insights. The pipeline runs Python scripts as subprocesses and falls back to heuristic analysis when ML libraries are not installed.
-
-### ML Engines
-
-| Engine | Library | Purpose |
-|--------|---------|---------|
-| Analytics | Scikit-learn | Pattern clustering, operator readiness prediction, pattern classification |
-| Document Embeddings | PyTorch | Semantic embeddings for knowledge library, document similarity, relevance-ranked search |
-| Forecast | TensorFlow | Time-series forecasting, anomaly alerts, trend estimation |
-
-### Suite Integration Artifacts
-
-The ML pipeline produces versioned artifacts that Suite can consume through its deterministic workflows:
-
-- **operator-readiness**: Readiness signals for project task assignment
-- **knowledge-index**: Semantic document index for Suite's standards checker
-- **watchdog-baseline**: Anomaly detection baselines for Suite's watchdog telemetry
-
-Artifacts are exported to `State/ml-artifacts/` and follow Suite's review-first design philosophy.
-
-### ML Setup (Optional)
-
-The ML pipeline works without any Python ML libraries installed (uses heuristic fallbacks). For full ML capability:
-
-```powershell
-pip install scikit-learn torch tensorflow
+### Build & Run
+```bash
+dotnet restore Foundry.sln
+dotnet build Foundry.sln
+dotnet run --project src/Foundry.Broker
 ```
 
-### Document Extraction Setup (Optional)
+The broker starts on `http://127.0.0.1:57420`.
 
-Document extraction works with basic `pypdf` and `python-docx` out of the box. For richer extraction (tables, figures, OCR, PPTX, HTML, images), install Docling:
-
-```powershell
-pip install docling
+### Run Tests
+```bash
+dotnet test Foundry.sln
 ```
 
-Enable the embedded ML pipeline in `dailydesk.settings.json`:
+### Discord Bot
+```bash
+cd bot
+pip install -r requirements.txt
+cp bot_config.example.json bot_config.json
+# Edit bot_config.json with your Discord token and channel IDs
+python foundry_bot.py
+```
+
+## Key Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Basic health check |
+| `GET` | `/api/health` | Detailed subsystem health |
+| `GET` | `/api/state` | Current pipeline state |
+| `POST` | `/api/ml/pipeline` | Run full ML pipeline |
+| `POST` | `/api/ml/embeddings` | Run document embeddings |
+| `POST` | `/api/ml/export-artifacts` | Export Suite artifacts |
+| `POST` | `/api/ml/index-knowledge` | Index knowledge documents |
+| `GET` | `/api/knowledge/index-status` | Knowledge index status |
+| `POST` | `/api/knowledge/search` | Semantic search |
+| `GET` | `/api/jobs` | List recent jobs |
+| `GET` | `/api/schedules` | List job schedules |
+| `POST` | `/api/workflows` | Create workflow template |
+
+All ML endpoints support `?sync=true` for synchronous execution or default to async job queuing.
+
+## Artifacts
+
+Artifacts are exported to `State/ml-artifacts/` and consumed by Suite through its review-first workflows.
+
+## Configuration
+
+Settings are loaded from `foundry.settings.json` (or `foundry.settings.local.json` for overrides):
 
 ```json
 {
-  "enableMLPipeline": true
+  "enableMLPipeline": true,
+  "ollamaEndpoint": "http://127.0.0.1:11434",
+  "mlModel": "qwen3:8b",
+  "mlArtifactExportPath": "",
+  "jobRetentionDays": 30,
+  "knowledgeLibraryPath": "",
+  "stateRootPath": "",
+  "discordBotToken": ""
 }
 ```
-
-### ML Broker Endpoints
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/ml/analytics` | Run Scikit-learn analytics (async; `?sync=true` for blocking) |
-| POST | `/api/ml/forecast` | Run TensorFlow forecast (async; `?sync=true` for blocking) |
-| POST | `/api/ml/embeddings` | Run PyTorch document embeddings (async; `?sync=true` for blocking) |
-| POST | `/api/ml/pipeline` | Run full ML pipeline (all three engines + artifact export) |
-| POST | `/api/ml/export-artifacts` | Export Suite integration artifacts |
-| POST | `/api/ml/index-knowledge` | Index knowledge documents into vector store (async) |
-| GET | `/api/knowledge/index-status` | Get knowledge index status |
-| POST | `/api/knowledge/search` | Semantic search across the knowledge library |
-
-### Job Endpoints
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/jobs` | List recent jobs (supports `?status=...&type=...` filters) |
-| GET | `/api/jobs/{jobId}` | Get job status and metadata |
-| GET | `/api/jobs/{jobId}/result` | Get job result (succeeded jobs only) |
-| GET | `/api/jobs/metrics` | Job throughput, failure rates, and queue depth |
-| DELETE | `/api/jobs/{jobId}` | Delete a completed job |
-
-### Health Endpoint
-
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| GET | `/api/health` | Subsystem health: Ollama, Python, LiteDB, job worker |
-
-## Qdrant Setup (Semantic Search)
-
-Semantic search requires a local Qdrant vector database. Run Qdrant as a Docker container:
-
-```bash
-docker run -d --name qdrant -p 6333:6333 -p 6334:6334 \
-  -v qdrant_storage:/qdrant/storage \
-  qdrant/qdrant
-```
-
-Qdrant is **optional** — all semantic search features fall back gracefully to keyword search when Qdrant is unavailable.
-
-## Workstation Setup
-
-Recommended path on both machines:
-
-```text
-C:\Users\<you>\Documents\GitHub\Office
-```
-
-Office state and knowledge files live under Dropbox:
-
-- `%USERPROFILE%\Dropbox\SuiteWorkspace\Office\Knowledge`
-- `%USERPROFILE%\Dropbox\SuiteWorkspace\Office\State`
-
-Clone on the second machine:
-
-```powershell
-git clone https://github.com/Koraji95-coder/Office.git C:\Users\<you>\Documents\GitHub\Office
-```
-
-## Build
-
-```powershell
-cd DailyDesk
-dotnet build
-```
-
-## Run
-
-```powershell
-cd DailyDesk
-dotnet run
-```
-
-## Test
-
-```powershell
-dotnet test DailyDesk.Core.Tests
-```
-
-## Relationship To Suite
-
-- `Suite` stays in its own repo.
-- `Daily Office` stays in this repo.
-- `Suite Runtime Control` lives in `Suite` and launches the built Office executable from the workstation-local path.
-- Office's ML pipeline produces artifacts that Suite can consume through its deterministic, review-first workflows.
-- Suite does **not** host an agent product surface. Office owns local chat, orchestration, and operator-assistant work.

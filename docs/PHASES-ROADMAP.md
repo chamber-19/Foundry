@@ -1,6 +1,6 @@
 # Phases 3–9 Roadmap
 
-> **Purpose:** A single document showing every phase of work for the Office repo from Phase 3 onward, broken into PRs that can be executed one at a time. Phases 1–2 are complete. This document covers Phase 3 (already implemented) through Phase 9 (future).
+> **Purpose:** A single document showing every phase of work for Foundry repo from Phase 3 onward, broken into PRs that can be executed one at a time. Phases 1–2 are complete. This document covers Phase 3 (already implemented) through Phase 9 (future).
 
 ---
 
@@ -24,11 +24,11 @@
 
 **Goal:** Move ML pipeline execution from synchronous broker endpoints to a background job system with persistent state.
 
-### PR 3.1: Job Record Model + OfficeJobStore
+### PR 3.1: Job Record Model + FoundryJobStore
 
 **What was done:**
-- Created `OfficeJob` model with fields: `Id` (GUID), `Type` (ml-analytics/ml-forecast/ml-embeddings/ml-pipeline/ml-export-artifacts), `Status` (queued/running/succeeded/failed), `CreatedAt`, `StartedAt`, `CompletedAt`, `Error`, `ResultKey`, `RequestedBy`, `RequestPayload`.
-- Created `OfficeJobStore` backed by LiteDB `jobs` collection with methods:
+- Created `FoundryJob` model with fields: `Id` (GUID), `Type` (ml-analytics/ml-forecast/ml-embeddings/ml-pipeline/ml-export-artifacts), `Status` (queued/running/succeeded/failed), `CreatedAt`, `StartedAt`, `CompletedAt`, `Error`, `ResultKey`, `RequestedBy`, `RequestPayload`.
+- Created `FoundryJobStore` backed by LiteDB `jobs` collection with methods:
   - `Enqueue(type, requestedBy, requestPayload)` — create a queued job.
   - `GetById(jobId)` — retrieve a job by ID.
   - `ListRecent(count)` — list most recent jobs.
@@ -37,15 +37,15 @@
   - `MarkFailed(jobId, error)` — mark job as failed with error message.
 
 **Files touched:**
-- `DailyDesk/Models/OfficeJob.cs` — new model.
-- `DailyDesk/Services/OfficeJobStore.cs` — new LiteDB-backed store.
+- `Foundry/Models/FoundryJob.cs` — new model.
+- `Foundry/Services/FoundryJobStore.cs` — new LiteDB-backed store.
 
 ---
 
 ### PR 3.2: Background Job Worker
 
 **What was done:**
-- Created `OfficeJobWorker : BackgroundService` in `DailyDesk.Broker`.
+- Created `FoundryJobWorker : BackgroundService` in `Foundry.Broker`.
 - Worker polls LiteDB every 2 seconds for queued jobs via `DequeueNext()`.
 - Executes one job at a time, dispatching to the orchestrator based on job type.
 - Updates job lifecycle: `queued` → `running` → `succeeded`/`failed`.
@@ -54,8 +54,8 @@
 - Registered as `IHostedService` in `Program.cs`.
 
 **Files touched:**
-- `DailyDesk.Broker/OfficeJobWorker.cs` — new background service.
-- `DailyDesk.Broker/Program.cs` — register hosted service.
+- `Foundry.Broker/FoundryJobWorker.cs` — new background service.
+- `Foundry.Broker/Program.cs` — register hosted service.
 
 ---
 
@@ -70,7 +70,7 @@
   - `GET /api/jobs/{jobId}/result` — get job result JSON (succeeded only).
 
 **Files touched:**
-- `DailyDesk.Broker/Program.cs` — modified ML endpoints, added job endpoints.
+- `Foundry.Broker/Program.cs` — modified ML endpoints, added job endpoints.
 
 ---
 
@@ -79,42 +79,42 @@
 **What was done:**
 - Created `MLResultStore` that persists latest ML analytics/forecast/embeddings results to LiteDB collections (`ml_analytics`, `ml_forecast`, `ml_embeddings`).
 - Uses `PersistedMLResult` wrapper with serialized JSON payload.
-- `OfficeBrokerOrchestrator` restores from LiteDB on init, persists after each ML run.
+- `FoundryOrchestrator` restores from LiteDB on init, persists after each ML run.
 - Export-artifacts endpoint is now restart-safe (survives broker restart).
 
 **Files touched:**
-- `DailyDesk/Services/MLResultStore.cs` — new persistence service.
-- `DailyDesk/Models/PersistedMLResult.cs` — new wrapper model.
-- `DailyDesk.Core/Services/OfficeBrokerOrchestrator.cs` — restore/persist on init and after ML runs.
+- `Foundry/Services/MLResultStore.cs` — new persistence service.
+- `Foundry/Models/PersistedMLResult.cs` — new wrapper model.
+- `Foundry.Core/Services/FoundryOrchestrator.cs` — restore/persist on init and after ML runs.
 
 ---
 
 ### PR 3.5: Job Worker Hardening (Timeout + Stale Recovery)
 
 **What was done:**
-- Added per-job timeout to `OfficeJobWorker` (prevents a hanging job from blocking the worker indefinitely).
-- Added `RecoverStaleJobs()` to `OfficeJobStore` — on startup, marks any jobs stuck in `running` status (from a previous crash) as `failed` with a recovery message.
+- Added per-job timeout to `FoundryJobWorker` (prevents a hanging job from blocking the worker indefinitely).
+- Added `RecoverStaleJobs()` to `FoundryJobStore` — on startup, marks any jobs stuck in `running` status (from a previous crash) as `failed` with a recovery message.
 - Worker calls `RecoverStaleJobs()` on initialization before processing new jobs.
 
 **Files touched:**
-- `DailyDesk.Broker/OfficeJobWorker.cs` — timeout + recovery on startup.
-- `DailyDesk/Services/OfficeJobStore.cs` — `RecoverStaleJobs()` method.
+- `Foundry.Broker/FoundryJobWorker.cs` — timeout + recovery on startup.
+- `Foundry/Services/FoundryJobStore.cs` — `RecoverStaleJobs()` method.
 
 ---
 
 ### PR 3.6: Job Management & Retention
 
 **What was done:**
-- Added `OfficeJobStore.DeleteById(jobId)` — delete a completed (succeeded/failed) job. Queued/running jobs protected.
-- Added `OfficeJobStore.DeleteOlderThan(cutoff)` — bulk-delete completed jobs older than threshold.
-- Added `OfficeJobStore.ListByStatus(status, limit)` — filter jobs for monitoring.
-- Added `OfficeJobStore.GetTotalCount()` — total job count for observability.
+- Added `FoundryJobStore.DeleteById(jobId)` — delete a completed (succeeded/failed) job. Queued/running jobs protected.
+- Added `FoundryJobStore.DeleteOlderThan(cutoff)` — bulk-delete completed jobs older than threshold.
+- Added `FoundryJobStore.ListByStatus(status, limit)` — filter jobs for monitoring.
+- Added `FoundryJobStore.GetTotalCount()` — total job count for observability.
 - Added `DELETE /api/jobs/{jobId}` endpoint (204/404/400 with status guard).
 - Added `GET /api/jobs?status=...&type=...` — filtered listing with query params.
 
 **Files touched:**
-- `DailyDesk/Services/OfficeJobStore.cs` — 4 new methods.
-- `DailyDesk.Broker/Program.cs` — new DELETE endpoint, updated GET with filters.
+- `Foundry/Services/FoundryJobStore.cs` — 4 new methods.
+- `Foundry.Broker/Program.cs` — new DELETE endpoint, updated GET with filters.
 
 ---
 
@@ -142,11 +142,11 @@
 - Each subsystem reports `ok`/`degraded`/`unavailable` with an overall status.
 
 **Files touched:**
-- `DailyDesk.Broker/Program.cs` — new endpoint.
-- `DailyDesk/Services/IModelProvider.cs` — `PingAsync()`.
-- `DailyDesk/Services/OllamaService.cs` — implement `PingAsync()`.
-- `DailyDesk/Services/ProcessRunner.cs` — `CheckPythonAsync()`.
-- `DailyDesk/Models/OfficeHealthReport.cs` — new model.
+- `Foundry.Broker/Program.cs` — new endpoint.
+- `Foundry/Services/IModelProvider.cs` — `PingAsync()`.
+- `Foundry/Services/OllamaService.cs` — implement `PingAsync()`.
+- `Foundry/Services/ProcessRunner.cs` — `CheckPythonAsync()`.
+- `Foundry/Models/FoundryHealthReport.cs` — new model.
 
 ---
 
@@ -154,26 +154,26 @@
 
 **What was done:**
 - Added `GET /api/jobs/metrics` endpoint returning total jobs by status, average duration, and queue depth.
-- Added `OfficeJobStore.GetMetrics()`, `GetAverageDuration()`, `GetCountByStatus()`, and `GetCompletedSince()` methods.
+- Added `FoundryJobStore.GetMetrics()`, `GetAverageDuration()`, `GetCountByStatus()`, and `GetCompletedSince()` methods.
 
 **Files touched:**
-- `DailyDesk/Services/OfficeJobStore.cs` — 4 new methods.
-- `DailyDesk/Models/OfficeJobMetrics.cs` — new model.
-- `DailyDesk.Broker/Program.cs` — new endpoint.
+- `Foundry/Services/FoundryJobStore.cs` — 4 new methods.
+- `Foundry/Models/OfficeJobMetrics.cs` — new model.
+- `Foundry.Broker/Program.cs` — new endpoint.
 
 ---
 
 ### PR 4.3: Automated Job Retention Cleanup
 
 **What was done:**
-- Added `JobRetentionWorker : BackgroundService` that runs once per day and calls `OfficeJobStore.DeleteOlderThan()`.
-- Retention period is configurable via `DailySettings.JobRetentionDays` (default: 30).
+- Added `JobRetentionWorker : BackgroundService` that runs once per day and calls `FoundryJobStore.DeleteOlderThan()`.
+- Retention period is configurable via `FoundrySettings.JobRetentionDays` (default: 30).
 - Logs deleted job count at `Information` level.
 
 **Files touched:**
-- `DailyDesk.Broker/JobRetentionWorker.cs` — new file.
-- `DailyDesk.Broker/Program.cs` — register hosted service.
-- `DailyDesk/Models/DailySettings.cs` — `JobRetentionDays` property.
+- `Foundry.Broker/JobRetentionWorker.cs` — new file.
+- `Foundry.Broker/Program.cs` — register hosted service.
+- `Foundry/Models/FoundrySettings.cs` — `JobRetentionDays` property.
 
 ---
 
@@ -186,28 +186,28 @@
 ### PR 5.1: Ollama Embeddings via OllamaSharp
 
 **What was done:**
-- Added `EmbeddingService` in `DailyDesk/Services/` that calls Ollama's `/api/embed` endpoint via OllamaSharp.
+- Added `EmbeddingService` in `Foundry/Services/` that calls Ollama's `/api/embed` endpoint via OllamaSharp.
 - Accepts a text string, returns a `float[]` vector.
 - Wrapped in the `ollama` Polly resilience pipeline.
 - Returns null if Ollama is unavailable (callers handle gracefully).
 
 **Files touched:**
-- `DailyDesk/Services/EmbeddingService.cs` — new file.
+- `Foundry/Services/EmbeddingService.cs` — new file.
 
 ---
 
 ### PR 5.2: Qdrant Local Vector Store
 
 **What was done:**
-- Added `Qdrant.Client` NuGet to `DailyDesk.Core.csproj`.
-- Created `VectorStoreService` in `DailyDesk/Services/` wrapping Qdrant client.
+- Added `Qdrant.Client` NuGet to `Foundry.Core.csproj`.
+- Created `VectorStoreService` in `Foundry/Services/` wrapping Qdrant client.
 - Methods: `UpsertAsync`, `SearchAsync`, `DeleteAsync`, `GetCollectionInfoAsync`.
 - Creates collection `office-knowledge` on first use.
 - Returns empty results if Qdrant is unreachable (existing TF-IDF fallback continues to work).
 
 **Files touched:**
-- `DailyDesk/Services/VectorStoreService.cs` — new file.
-- `DailyDesk.Core.csproj` — `Qdrant.Client` NuGet.
+- `Foundry/Services/VectorStoreService.cs` — new file.
+- `Foundry.Core.csproj` — `Qdrant.Client` NuGet.
 - `README.md` — Qdrant Docker setup instructions.
 
 ---
@@ -220,10 +220,10 @@
 - Endpoints added: `POST /api/ml/index-knowledge`, `GET /api/knowledge/index-status`.
 
 **Files touched:**
-- `DailyDesk/Models/OfficeJob.cs` — new job type.
-- `DailyDesk/Services/KnowledgeIndexStore.cs` — new file.
-- `DailyDesk.Broker/Program.cs` — new endpoints.
-- `DailyDesk.Broker/OfficeJobWorker.cs` — handler for knowledge-index jobs.
+- `Foundry/Models/FoundryJob.cs` — new job type.
+- `Foundry/Services/KnowledgeIndexStore.cs` — new file.
+- `Foundry.Broker/Program.cs` — new endpoints.
+- `Foundry.Broker/FoundryJobWorker.cs` — handler for knowledge-index jobs.
 
 ---
 
@@ -236,9 +236,9 @@
 - Added `POST /api/knowledge/search` endpoint.
 
 **Files touched:**
-- `DailyDesk/Services/KnowledgePromptContextBuilder.cs` — semantic search path added.
-- `DailyDesk/Models/KnowledgeSearchResult.cs` — new model.
-- `DailyDesk.Broker/Program.cs` — new endpoint.
+- `Foundry/Services/KnowledgePromptContextBuilder.cs` — semantic search path added.
+- `Foundry/Models/KnowledgeSearchResult.cs` — new model.
+- `Foundry.Broker/Program.cs` — new endpoint.
 
 ---
 
@@ -249,21 +249,21 @@
 ### PR 6.1: Semantic Kernel Core Integration
 
 **What was done:**
-- Added `Microsoft.SemanticKernel` 1.71.0 to `DailyDesk.Core.csproj`.
-- Created `OfficeKernelFactory` in `DailyDesk/Services/` that builds an SK `Kernel` configured for the local Ollama endpoint.
+- Added `Microsoft.SemanticKernel` 1.71.0 to `Foundry.Core.csproj`.
+- Created `OfficeKernelFactory` in `Foundry/Services/` that builds an SK `Kernel` configured for the local Ollama endpoint.
 - Created base `DeskAgent` class that wraps an SK `ChatCompletionAgent` with system prompt and tool registration.
 
 **Files touched:**
-- `DailyDesk/Services/OfficeKernelFactory.cs` — new file.
-- `DailyDesk/Services/DeskAgent.cs` — new file.
-- `DailyDesk.Core.csproj` — `Microsoft.SemanticKernel` NuGet.
+- `Foundry/Services/OfficeKernelFactory.cs` — new file.
+- `Foundry/Services/DeskAgent.cs` — new file.
+- `Foundry.Core.csproj` — `Microsoft.SemanticKernel` NuGet.
 
 ---
 
 ### PR 6.2: Desk-Specific Agents
 
 **What was done:**
-- Created five agent classes in `DailyDesk/Services/Agents/`:
+- Created five agent classes in `Foundry/Services/Agents/`:
   - `ChiefOfStaffAgent` — routes the day, accesses state and job list.
   - `EngineeringDeskAgent` — technical analysis, code review, architecture tradeoffs.
   - `SuiteContextAgent` — read-only Suite repo/runtime awareness.
@@ -273,13 +273,13 @@
 - Agents registered in DI in `Program.cs`.
 
 **Files touched:**
-- `DailyDesk/Services/Agents/ChiefOfStaffAgent.cs` — new file.
-- `DailyDesk/Services/Agents/EngineeringDeskAgent.cs` — new file.
-- `DailyDesk/Services/Agents/SuiteContextAgent.cs` — new file.
-- `DailyDesk/Services/Agents/GrowthOpsAgent.cs` — new file.
-- `DailyDesk/Services/Agents/MLEngineerAgent.cs` — new file.
-- `DailyDesk.Core/Services/OfficeBrokerOrchestrator.cs` — agent dispatch.
-- `DailyDesk.Broker/Program.cs` — register agents in DI.
+- `Foundry/Services/Agents/ChiefOfStaffAgent.cs` — new file.
+- `Foundry/Services/Agents/EngineeringDeskAgent.cs` — new file.
+- `Foundry/Services/Agents/SuiteContextAgent.cs` — new file.
+- `Foundry/Services/Agents/GrowthOpsAgent.cs` — new file.
+- `Foundry/Services/Agents/MLEngineerAgent.cs` — new file.
+- `Foundry.Core/Services/FoundryOrchestrator.cs` — agent dispatch.
+- `Foundry.Broker/Program.cs` — register agents in DI.
 
 ---
 
@@ -291,10 +291,10 @@
 - `OperatorMemoryStore.CloneDeskMessage` copies `ToolCalls` for persistence.
 
 **Files touched:**
-- `DailyDesk/Services/DeskAgent.cs` — memory management.
-- `DailyDesk/Models/DeskThreadState.cs` — `Summary` field.
-- `DailyDesk/Models/DeskMessageRecord.cs` — `ToolCalls` field.
-- `DailyDesk/Services/OperatorMemoryStore.cs` — `CloneDeskMessage` copies `ToolCalls`.
+- `Foundry/Services/DeskAgent.cs` — memory management.
+- `Foundry/Models/DeskThreadState.cs` — `Summary` field.
+- `Foundry/Models/DeskMessageRecord.cs` — `ToolCalls` field.
+- `Foundry/Services/OperatorMemoryStore.cs` — `CloneDeskMessage` copies `ToolCalls`.
 
 ---
 
@@ -312,7 +312,7 @@
 - Updated `README.md` with Docling setup instructions.
 
 **Files touched:**
-- `DailyDesk/Scripts/extract_document_text.py` — rewritten internals.
+- `Foundry/Scripts/extract_document_text.py` — rewritten internals.
 - `README.md` — Docling setup instructions.
 
 ---
@@ -326,9 +326,9 @@
 - `ExtractedTable` and `ExtractedFigure` models added to `LearningDocument.cs`.
 
 **Files touched:**
-- `DailyDesk/Scripts/extract_document_text.py` — table/figure output.
-- `DailyDesk/Services/KnowledgeImportService.cs` — `ExtractViaPythonRichAsync`.
-- `DailyDesk/Models/LearningDocument.cs` — `ExtractedTable`, `ExtractedFigure`, optional fields.
+- `Foundry/Scripts/extract_document_text.py` — table/figure output.
+- `Foundry/Services/KnowledgeImportService.cs` — `ExtractViaPythonRichAsync`.
+- `Foundry/Models/LearningDocument.cs` — `ExtractedTable`, `ExtractedFigure`, optional fields.
 
 ---
 
@@ -340,16 +340,16 @@
 
 **What was done:**
 - Created `JobSchedule` model and `JobSchedulerStore` backed by LiteDB `job_schedules` collection.
-- `JobSchedulerWorker : BackgroundService` checks schedules every minute and enqueues jobs via `OfficeJobStore.Enqueue()`.
+- `JobSchedulerWorker : BackgroundService` checks schedules every minute and enqueues jobs via `FoundryJobStore.Enqueue()`.
 - Endpoints added: `GET /api/schedules`, `POST /api/schedules`, `PUT /api/schedules/{id}`, `DELETE /api/schedules/{id}`.
-- Schedule validators added to `DailyDesk.Broker/Validators.cs`.
+- Schedule validators added to `Foundry.Broker/Validators.cs`.
 
 **Files touched:**
-- `DailyDesk/Models/JobSchedule.cs` — new model.
-- `DailyDesk/Services/JobSchedulerStore.cs` — new LiteDB-backed store.
-- `DailyDesk.Broker/JobSchedulerWorker.cs` — new background service.
-- `DailyDesk.Broker/Program.cs` — register service, endpoints.
-- `DailyDesk.Broker/Validators.cs` — schedule validators.
+- `Foundry/Models/JobSchedule.cs` — new model.
+- `Foundry/Services/JobSchedulerStore.cs` — new LiteDB-backed store.
+- `Foundry.Broker/JobSchedulerWorker.cs` — new background service.
+- `Foundry.Broker/Program.cs` — register service, endpoints.
+- `Foundry.Broker/Validators.cs` — schedule validators.
 
 ---
 
@@ -361,11 +361,11 @@
 - `GET /api/daily-run/latest` endpoint returns the most recent daily run summary.
 
 **Files touched:**
-- `DailyDesk/Models/OfficeJob.cs` — `DailyRun` job type.
-- `DailyDesk/Models/DailyRunTemplate.cs` — run summary model.
-- `DailyDesk.Broker/OfficeJobWorker.cs` — daily run handler.
-- `DailyDesk.Core/Services/OfficeBrokerOrchestrator.cs` — `RunDailyWorkflowAsync()`.
-- `DailyDesk.Broker/Program.cs` — new endpoint.
+- `Foundry/Models/FoundryJob.cs` — `DailyRun` job type.
+- `Foundry/Models/DailyRunTemplate.cs` — run summary model.
+- `Foundry.Broker/FoundryJobWorker.cs` — daily run handler.
+- `Foundry.Core/Services/FoundryOrchestrator.cs` — `RunDailyWorkflowAsync()`.
+- `Foundry.Broker/Program.cs` — new endpoint.
 
 ---
 
@@ -375,13 +375,13 @@
 - Created `WorkflowTemplate` model and `WorkflowStore` backed by LiteDB `workflow_templates` collection.
 - Two built-in templates: "Daily Run", "Knowledge Refresh".
 - Endpoints: `GET /api/workflows`, `POST /api/workflows`, `POST /api/workflows/{id}/run`, `DELETE /api/workflows/{id}`.
-- Workflow validators added to `DailyDesk.Broker/Validators.cs`.
+- Workflow validators added to `Foundry.Broker/Validators.cs`.
 
 **Files touched:**
-- `DailyDesk/Models/WorkflowTemplate.cs` — new model.
-- `DailyDesk/Services/WorkflowStore.cs` — new LiteDB-backed store.
-- `DailyDesk.Broker/Program.cs` — new endpoints.
-- `DailyDesk.Broker/Validators.cs` — workflow validators.
+- `Foundry/Models/WorkflowTemplate.cs` — new model.
+- `Foundry/Services/WorkflowStore.cs` — new LiteDB-backed store.
+- `Foundry.Broker/Program.cs` — new endpoints.
+- `Foundry.Broker/Validators.cs` — workflow validators.
 
 ---
 
@@ -396,7 +396,7 @@
 - ML-related ViewModels updated to use polling instead of blocking calls.
 
 **Files touched:**
-- `DailyDesk/Services/JobPollingService.cs` — new file.
+- `Foundry/Services/JobPollingService.cs` — new file.
 
 ---
 
@@ -409,8 +409,8 @@
 - `KnowledgeSearchResult` model added.
 
 **Files touched:**
-- `DailyDesk/Services/KnowledgeSearchService.cs` — new file.
-- `DailyDesk/Models/KnowledgeSearchResult.cs` — new model.
+- `Foundry/Services/KnowledgeSearchService.cs` — new file.
+- `Foundry/Models/KnowledgeSearchResult.cs` — new model.
 
 ---
 
@@ -423,8 +423,8 @@
 - `OperatorMemoryStore.CloneDeskMessage` copies `ToolCalls` for persistence.
 
 **Files touched:**
-- `DailyDesk/Models/DeskMessageRecord.cs` — `ToolCalls` field.
-- `DailyDesk/Services/OperatorMemoryStore.cs` — `CloneDeskMessage` updated.
+- `Foundry/Models/DeskMessageRecord.cs` — `ToolCalls` field.
+- `Foundry/Services/OperatorMemoryStore.cs` — `CloneDeskMessage` updated.
 
 ---
 
@@ -432,7 +432,7 @@
 
 | PR | Phase | Title | Dependencies |
 |----|-------|-------|-------------|
-| 3.1 | 3 | Job Record Model + OfficeJobStore | Phase 2 (LiteDB) |
+| 3.1 | 3 | Job Record Model + FoundryJobStore | Phase 2 (LiteDB) |
 | 3.2 | 3 | Background Job Worker | 3.1 |
 | 3.3 | 3 | ML Endpoints → Async + Job Status Endpoints | 3.1, 3.2 |
 | 3.4 | 3 | ML Result Persistence (Restart-Safe) | 3.1 |

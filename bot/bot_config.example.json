@@ -1,0 +1,10 @@
+{
+  "token": "YOUR_DISCORD_BOT_TOKEN",
+  "guild_id": "YOUR_GUILD_ID",
+  "channel_ids": {
+    "alerts": "CHANNEL_ID_FOR_ALERTS",
+    "results": "CHANNEL_ID_FOR_RESULTS",
+    "commands": "CHANNEL_ID_FOR_COMMANDS"
+  },
+  "broker_url": "http://127.0.0.1:57420"
+}

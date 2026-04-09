@@ -1,6 +1,8 @@
-# Incremental Architecture Plan
+# Foundry — Architecture Plan
 
-> **Goal:** Improve reliability, observability, and persistence — then build out async job execution, semantic search, agent orchestration, scheduled automation, and WPF async integration. All 9 phases are now complete.
+> **Note:** This document was carried over from the original DailyDesk/Office repository. References to chat agents, WPF desktop UI, operator memory, and research features have been removed. Foundry is a standalone ML scoring and reasoning pipeline.
+
+> **Goal:** Provide reliable ML pipeline execution, knowledge indexing, job scheduling, and health monitoring via an ASP.NET Core broker API. All operator interaction happens through a Discord bot.
 
 ---
 
@@ -10,7 +12,7 @@ Before proposing changes, it is important to recognize what the codebase already
 
 | Pattern | Where | Why It Matters |
 |---------|-------|----------------|
-| **Dual-semaphore concurrency** | `OfficeBrokerOrchestrator._gate` / `_mlGate` | ML work already runs outside the main state lock. This is the seed for a proper job model. |
+| **Dual-semaphore concurrency** | `FoundryOrchestrator._gate` / `_mlGate` | ML work already runs outside the main state lock. This is the seed for a proper job model. |
 | **Parallel ML execution** | `RunFullMLPipelineAsync` uses `Task.WhenAll` | Analytics, forecast, and embeddings are independent. The orchestrator already treats them as separate units of work. |
 | **Graceful degradation** | `OllamaService`, `MLAnalyticsService`, `LiveResearchService` | Every external call has a fallback path: CLI fallback for model listing, heuristic fallback for ML, deterministic synthesis for research. |
 | **ProcessRunner subprocess model** | `ProcessRunner.cs` | Python ML work is already isolated in subprocesses with stdout/stderr capture and exit code checking. |
@@ -27,10 +29,10 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.1 Serilog Structured Logging
 
-**Scope:** `DailyDesk.Broker` (primary), `DailyDesk.Core` (secondary).
+**Scope:** `Foundry.Broker` (primary), `Foundry.Core` (secondary).
 
 **What changes:**
-- Add `Serilog.AspNetCore` and `Serilog.Sinks.File` to `DailyDesk.Broker.csproj`.
+- Add `Serilog.AspNetCore` and `Serilog.Sinks.File` to `Foundry.Broker.csproj`.
 - Configure in `Program.cs`: console sink + rolling file sink (`State/logs/office-broker-.log`).
 - Replace `builder.WebHost` logger with `UseSerilog()`.
 - No changes to existing `logger.LogError()` call sites — Serilog plugs into `ILogger`.
@@ -44,10 +46,10 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.2 AngleSharp HTML Extraction
 
-**Scope:** `DailyDesk/Services/LiveResearchService.cs`.
+**Scope:** `Foundry/Services/LiveResearchService.cs`.
 
 **What changes:**
-- Add `AngleSharp` NuGet to `DailyDesk.Core.csproj` (since `LiveResearchService` is linked into Core).
+- Add `AngleSharp` NuGet to `Foundry.Core.csproj` (since `LiveResearchService` is linked into Core).
 - Replace the four compiled `Regex` patterns (`ResultLinkRegex`, `ResultSnippetRegex`, `DescriptionMetaRegex`, `OgDescriptionMetaRegex`) with AngleSharp DOM queries.
 - Replace `ExtractPreview` regex pipeline with AngleSharp document parsing.
 - `CleanHtml` becomes `document.Body.TextContent` (built-in text extraction).
@@ -62,10 +64,10 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.3 FluentValidation for Broker Requests
 
-**Scope:** `DailyDesk.Broker/Program.cs` request records.
+**Scope:** `Foundry.Broker/Program.cs` request records.
 
 **What changes:**
-- Add `FluentValidation` NuGet to `DailyDesk.Broker.csproj`.
+- Add `FluentValidation` NuGet to `Foundry.Broker.csproj`.
 - Create validators for request records that currently rely on orchestrator `ArgumentException` throws.
 - Call `validator.Validate()` at the top of each endpoint, returning `400 BadRequest` with structured error details.
 - Remove duplicated validation from orchestrator methods where the broker now handles it.
@@ -84,10 +86,10 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.4 OllamaSharp Client Replacement
 
-**Scope:** `DailyDesk/Services/OllamaService.cs`.
+**Scope:** `Foundry/Services/OllamaService.cs`.
 
 **What changes:**
-- Add `OllamaSharp` NuGet to `DailyDesk.Core.csproj`.
+- Add `OllamaSharp` NuGet to `Foundry.Core.csproj`.
 - Replace internal `HttpClient` + manual JSON serialization with `OllamaApiClient`.
 - Replace `OllamaChatRequest/Response` records with OllamaSharp's typed API.
 - Replace `GetInstalledModelsAsync` HTTP+CLI dual path with OllamaSharp's `ListLocalModelsAsync`.
@@ -108,15 +110,15 @@ Before proposing changes, it is important to recognize what the codebase already
 
 **Goal:** Replace fragile JSON file I/O with a proper embedded database. Add retry/circuit-breaker patterns to all external calls.
 
-**Packages added:** `LiteDB` 5.0.21, `Polly.Core` 8.6.6 to `DailyDesk.Core.csproj`.
+**Packages added:** `LiteDB` 5.0.21, `Polly.Core` 8.6.6 to `Foundry.Core.csproj`.
 
 ### 2.1 LiteDB Local Persistence
 
 **Scope:** `TrainingStore.cs`, `OperatorMemoryStore.cs`, `OfficeSessionStateStore.cs`.
 
 **What changes:**
-- Add `LiteDB` NuGet to `DailyDesk.Core.csproj`.
-- Create `OfficeDatabase` wrapper class that manages a single `LiteDatabase` instance (`office.db`).
+- Add `LiteDB` NuGet to `Foundry.Core.csproj`.
+- Create `FoundryDatabase` wrapper class that manages a single `LiteDatabase` instance (`foundry.db`).
 - Migrate each store to use LiteDB collections instead of JSON files:
   - `TrainingStore` → `training_attempts`, `defense_attempts`, `reflections` collections.
   - `OperatorMemoryStore` → `policies`, `watchlists`, `suggestions`, `activities` collections.
@@ -138,7 +140,7 @@ Before proposing changes, it is important to recognize what the codebase already
 **Scope:** `OllamaService`, `LiveResearchService`, `ProcessRunner`, `MLAnalyticsService`.
 
 **What changes:**
-- Add `Polly` NuGet to `DailyDesk.Core.csproj`.
+- Add `Polly` NuGet to `Foundry.Core.csproj`.
 - Define named resilience pipelines:
   - **`ollama`**: Retry 3× with exponential backoff (2s, 4s, 8s) + circuit breaker (5 failures → 30s open).
   - **`web-research`**: Retry 2× with 1s delay + timeout at 25s (current timeout preserved).
@@ -161,12 +163,12 @@ Before proposing changes, it is important to recognize what the codebase already
 
 **Goal:** Move ML pipeline execution from synchronous broker endpoints to a background job system with persistent state.
 
-**Implementation:** `OfficeJob` model + `OfficeJobStore` (LiteDB) + `OfficeJobWorker` (`BackgroundService`) + 3 new endpoints + `?sync=true` backward compatibility on ML endpoints.
+**Implementation:** `FoundryJob` model + `FoundryJobStore` (LiteDB) + `FoundryJobWorker` (`BackgroundService`) + 3 new endpoints + `?sync=true` backward compatibility on ML endpoints.
 
 ### 3.1 Job Record Model
 
 ```
-OfficeJob
+FoundryJob
 ├── Id: string (GUID)
 ├── Type: string ("ml-analytics" | "ml-forecast" | "ml-embeddings" | "ml-pipeline" | "ml-export-artifacts")
 ├── Status: string ("queued" | "running" | "succeeded" | "failed")
@@ -182,10 +184,10 @@ OfficeJob
 
 ### 3.2 Background Worker
 
-**Scope:** `DailyDesk.Broker` — new `IHostedService`.
+**Scope:** `Foundry.Broker` — new `IHostedService`.
 
 **What changes:**
-- Add `OfficeJobWorker : BackgroundService` to `DailyDesk.Broker`.
+- Add `FoundryJobWorker : BackgroundService` to `Foundry.Broker`.
 - Worker polls LiteDB `jobs` collection for `queued` jobs.
 - Executes one job at a time (reuses `_mlGate` concurrency model).
 - Updates job status through lifecycle: `queued` → `running` → `succeeded`/`failed`.
@@ -218,10 +220,10 @@ OfficeJob
 **Problem:** Jobs accumulate indefinitely in LiteDB without cleanup, unlike other stores that enforce item limits.
 
 **Solution:**
-- `OfficeJobStore.DeleteById(jobId)` — Delete a completed (succeeded/failed) job by ID. Queued/running jobs cannot be deleted.
-- `OfficeJobStore.DeleteOlderThan(cutoff)` — Bulk-delete completed jobs older than a date threshold.
-- `OfficeJobStore.ListByStatus(status, limit)` — Filter jobs by status for monitoring.
-- `OfficeJobStore.GetTotalCount()` — Total job count for observability.
+- `FoundryJobStore.DeleteById(jobId)` — Delete a completed (succeeded/failed) job by ID. Queued/running jobs cannot be deleted.
+- `FoundryJobStore.DeleteOlderThan(cutoff)` — Bulk-delete completed jobs older than a date threshold.
+- `FoundryJobStore.ListByStatus(status, limit)` — Filter jobs by status for monitoring.
+- `FoundryJobStore.GetTotalCount()` — Total job count for observability.
 - `DELETE /api/jobs/{jobId}` — HTTP endpoint for single-job deletion (204 No Content / 404 / 400).
 - `GET /api/jobs?status=...&type=...` — Filtered listing with optional status and type query params.
 
@@ -245,18 +247,18 @@ The WPF client currently calls ML endpoints and waits for the response. With the
 - `GET /api/health` returns structured status for each subsystem: Ollama, Python, LiteDB, job worker.
 - `IModelProvider.PingAsync()` checks Ollama reachability.
 - `ProcessRunner.CheckPythonAsync()` checks Python availability.
-- `OfficeHealthReport` model carries per-subsystem `ok`/`degraded`/`unavailable` status.
+- `FoundryHealthReport` model carries per-subsystem `ok`/`degraded`/`unavailable` status.
 
 ### 4.2 Job Metrics Endpoint
 
 - `GET /api/jobs/metrics` returns total jobs by status, average duration, queue depth, and completed-since counts.
-- `OfficeJobStore.GetMetrics()`, `GetAverageDuration()`, `GetCountByStatus()`, `GetCompletedSince()` methods.
+- `FoundryJobStore.GetMetrics()`, `GetAverageDuration()`, `GetCountByStatus()`, `GetCompletedSince()` methods.
 - `OfficeJobMetrics` model.
 
 ### 4.3 Automated Job Retention
 
-- `JobRetentionWorker : BackgroundService` runs once per day and calls `OfficeJobStore.DeleteOlderThan()`.
-- Retention period configurable via `DailySettings.JobRetentionDays` (default: 30).
+- `JobRetentionWorker : BackgroundService` runs once per day and calls `FoundryJobStore.DeleteOlderThan()`.
+- Retention period configurable via `FoundrySettings.JobRetentionDays` (default: 30).
 
 ---
 
@@ -292,7 +294,7 @@ The WPF client currently calls ML endpoints and waits for the response. With the
 
 - `OfficeKernelFactory` builds an SK `Kernel` for the local Ollama endpoint (`Microsoft.SemanticKernel` 1.71.0).
 - `DeskAgent` base class wraps SK `ChatCompletionAgent` with system prompt and tool registration.
-- Five desk agents in `DailyDesk/Services/Agents/`: `ChiefOfStaffAgent`, `EngineeringDeskAgent`, `SuiteContextAgent`, `GrowthOpsAgent`, `MLEngineerAgent`.
+- Five desk agents in `Foundry/Services/Agents/`: `ChiefOfStaffAgent`, `EngineeringDeskAgent`, `SuiteContextAgent`, `GrowthOpsAgent`, `MLEngineerAgent`.
 - Agent dispatch in `SendChatAsync` replaces `PromptComposer.ComposeChat()`, with fallback to direct `IModelProvider`.
 - `DeskThreadState.Summary` for multi-turn memory. `DeskMessageRecord.ToolCalls` for tool invocation records.
 

@@ -1,6 +1,6 @@
-# Coding Conventions
+# Foundry — Coding Conventions
 
-> **Purpose:** Establish patterns that AI agents and contributors must follow when writing code in this repository. These conventions are derived from the existing codebase and the incremental architecture plan. When in doubt, follow the pattern you see in the existing code rather than inventing a new one.
+> **Purpose:** Establish patterns that AI agents and contributors must follow when writing code in this repository. Foundry is a standalone ML pipeline — there is no desktop UI, chat agent system, or research service.
 
 ---
 
@@ -21,7 +21,7 @@
 ## C# Code Style
 
 ### Naming
-- **Classes:** PascalCase, descriptive nouns (`OllamaService`, `TrainingStore`, `OfficeJobWorker`).
+- **Classes:** PascalCase, descriptive nouns (`OllamaService`, `TrainingStore`, `FoundryJobWorker`).
 - **Interfaces:** `I` prefix (`IModelProvider`).
 - **Methods:** PascalCase, verb-first (`GenerateAsync`, `LoadSummaryAsync`, `RunMLAnalyticsAsync`).
 - **Private fields:** `_camelCase` with underscore prefix (`_httpClient`, `_gate`, `_logger`).
@@ -32,7 +32,7 @@
 - All I/O methods must be `async Task<T>` or `async Task`.
 - Always accept `CancellationToken cancellationToken = default` as the last parameter.
 - Always pass `cancellationToken` to downstream async calls.
-- Use `ConfigureAwait(false)` in library code (`DailyDesk.Core`). Omit in WPF code (`DailyDesk`).
+- Use `ConfigureAwait(false)` in library code (`Foundry.Core`). Omit in WPF code (`Foundry`).
 
 ### Error Handling
 ```csharp
@@ -103,18 +103,18 @@ catch (Exception ex)
 
 ```
 Office/
-├── DailyDesk/              # WPF application (Windows-only)
+├── Foundry/              # WPF application (Windows-only)
 │   ├── Models/             # Shared models (compiled into Core via link)
 │   ├── Services/           # Shared services (compiled into Core via link)
 │   ├── Scripts/            # Python ML scripts
 │   ├── ViewModels/         # WPF-specific MVVM
 │   └── Views/              # XAML views
-├── DailyDesk.Broker/       # ASP.NET Core web service (localhost-only)
+├── Foundry.Broker/       # ASP.NET Core web service (localhost-only)
 │   ├── Endpoints/          # IEndpointRouteBuilder extension classes + validators (one file per domain group)
 │   └── Program.cs          # Infrastructure setup only (DI, middleware, hosted services)
-├── DailyDesk.Core/         # Shared library (net10.0, no Windows dependency)
+├── Foundry.Core/         # Shared library (net10.0, no Windows dependency)
 │   └── Services/           # Core-only services (Orchestrator, SessionStore, etc.)
-├── DailyDesk.Core.Tests/   # xUnit tests
+├── Foundry.Core.Tests/   # xUnit tests
 ├── Docs/                   # Architecture docs, library decisions, conventions
 ├── Knowledge/              # Repo-owned seed knowledge
 └── schemas/                # Training feature schema (feature-v1.json)
@@ -124,15 +124,15 @@ Office/
 
 | Type of code | Location | Why |
 |-------------|----------|-----|
-| New service used by both WPF and Broker | `DailyDesk/Services/` | Auto-compiled into Core via link |
-| New model used everywhere | `DailyDesk/Models/` | Auto-compiled into Core via link |
-| Broker-only endpoint logic | `DailyDesk.Broker/Endpoints/` | One static class per domain group; call `app.Map*Endpoints(logger)` in `Program.cs` |
-| Broker-only background service | `DailyDesk.Broker/` (new file) | Register in Program.cs |
-| Core-only service (no WPF dependency) | `DailyDesk.Core/Services/` | Direct file in Core project |
-| FluentValidation validators | `DailyDesk.Broker/Endpoints/` | Co-located with request records in the same endpoint file |
-| New NuGet for shared services | `DailyDesk.Core.csproj` | Core is the shared dependency |
-| New NuGet for Broker-only features | `DailyDesk.Broker.csproj` | Keep WPF project lean |
-| Tests | `DailyDesk.Core.Tests/` | All tests go here |
+| New service used by both WPF and Broker | `Foundry/Services/` | Auto-compiled into Core via link |
+| New model used everywhere | `Foundry/Models/` | Auto-compiled into Core via link |
+| Broker-only endpoint logic | `Foundry.Broker/Endpoints/` | One static class per domain group; call `app.Map*Endpoints(logger)` in `Program.cs` |
+| Broker-only background service | `Foundry.Broker/` (new file) | Register in Program.cs |
+| Core-only service (no WPF dependency) | `Foundry.Core/Services/` | Direct file in Core project |
+| FluentValidation validators | `Foundry.Broker/Endpoints/` | Co-located with request records in the same endpoint file |
+| New NuGet for shared services | `Foundry.Core.csproj` | Core is the shared dependency |
+| New NuGet for Broker-only features | `Foundry.Broker.csproj` | Keep WPF project lean |
+| Tests | `Foundry.Core.Tests/` | All tests go here |
 
 ---
 
@@ -140,7 +140,7 @@ Office/
 
 ### Endpoint Pattern
 ```csharp
-app.MapPost("/api/{resource}/{action}", async (RequestType request, OfficeBrokerOrchestrator orchestrator, CancellationToken ct) =>
+app.MapPost("/api/{resource}/{action}", async (RequestType request, FoundryOrchestrator orchestrator, CancellationToken ct) =>
 {
     // 1. Validate (FluentValidation)
     var validation = new RequestValidator().Validate(request);
@@ -192,14 +192,14 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, OfficeBroker
 - Test method naming: `MethodName_Condition_ExpectedResult` (e.g., `BuildSummary_WithAttempts_ReturnsWeakTopics`).
 - Arrange-Act-Assert pattern.
 - No mocking framework yet — tests operate on real instances with in-memory data.
-- Tests must pass on Linux (`dotnet test DailyDesk.Core.Tests`).
+- Tests must pass on Linux (`dotnet test Foundry.Core.Tests`).
 - Exception: `ResolveOfficeRootPath` test is known to fail on Linux (Windows path conventions).
 
 ---
 
 ## Python Script Conventions
 
-- Scripts live in `DailyDesk/Scripts/`.
+- Scripts live in `Foundry/Scripts/`.
 - Called via `ProcessRunner.RunAsync("python", scriptPath + " --input " + inputFile)`.
 - Input: JSON file path passed as `--input` argument.
 - Output: JSON written to stdout.
@@ -223,7 +223,7 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, OfficeBroker
 
 ## Persistence Conventions (Phase 2+)
 
-- Single database file: `office.db` in the state root directory.
+- Single database file: `foundry.db` in the state root directory.
 - One `LiteDatabase` instance per application lifetime (thread-safe).
 - Collection naming: `snake_case` (e.g., `training_attempts`, `session_state`, `jobs`).
 - Index fields used in queries.
@@ -238,5 +238,5 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, OfficeBroker
 - Branch naming: `feature/{description}`, `fix/{description}`, `docs/{description}`.
 - Commit messages: imperative mood, concise (`Add Serilog logging to Broker`, `Replace regex HTML parsing with AngleSharp`).
 - One concern per PR. Do not mix unrelated changes.
-- PRs should pass `dotnet build` and `dotnet test DailyDesk.Core.Tests` before merge.
+- PRs should pass `dotnet build` and `dotnet test Foundry.Core.Tests` before merge.
 - Docs-only PRs do not require test changes.

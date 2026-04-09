@@ -1,0 +1,50 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.csproj.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# State and data
+State/
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+
+# Conda
+.conda/
+
+# Node
+node_modules/
+
+# Secrets and local config
+*.local.json
+foundry.settings.local.json
+bot_config.json
+
+# Logs
+*.log
+
+# ML artifacts (generated, not tracked)
+ml-artifacts/
+
+# Test results
+TestResults/
+coverage/
