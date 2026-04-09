@@ -46,7 +46,7 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.2 AngleSharp HTML Extraction
 
-**Scope:** `Foundry/Services/LiveResearchService.cs`.
+**Scope:** `src/Foundry.Core/Services/LiveResearchService.cs`.
 
 **What changes:**
 - Add `AngleSharp` NuGet to `Foundry.Core.csproj` (since `LiveResearchService` is linked into Core).
@@ -86,7 +86,7 @@ Before proposing changes, it is important to recognize what the codebase already
 
 ### 1.4 OllamaSharp Client Replacement
 
-**Scope:** `Foundry/Services/OllamaService.cs`.
+**Scope:** `src/Foundry.Core/Services/OllamaService.cs`.
 
 **What changes:**
 - Add `OllamaSharp` NuGet to `Foundry.Core.csproj`.
@@ -229,12 +229,9 @@ FoundryJob
 
 **Retention policy:** Completed jobs are eligible for deletion after 30 days. `JobRetentionWorker` (Phase 4) handles automated cleanup daily.
 
-### 3.5 No UI Changes Required
+### 3.5 No Client Changes Required
 
-The WPF client currently calls ML endpoints and waits for the response. With the async model:
-- Client gets back a job ID immediately.
-- Client polls `GET /api/jobs/{jobId}` until status is `succeeded` or `failed`.
-- This can be implemented in the WPF ViewModel later without broker changes.
+The broker's ML endpoints now return a job ID immediately. Callers poll `GET /api/jobs/{jobId}` until status is `succeeded` or `failed`. The Discord bot and any future clients interact with the job API without any synchronous blocking.
 
 ---
 
@@ -294,7 +291,7 @@ The WPF client currently calls ML endpoints and waits for the response. With the
 
 - `OfficeKernelFactory` builds an SK `Kernel` for the local Ollama endpoint (`Microsoft.SemanticKernel` 1.71.0).
 - `DeskAgent` base class wraps SK `ChatCompletionAgent` with system prompt and tool registration.
-- Five desk agents in `Foundry/Services/Agents/`: `ChiefOfStaffAgent`, `EngineeringDeskAgent`, `SuiteContextAgent`, `GrowthOpsAgent`, `MLEngineerAgent`.
+- Five desk agents in `src/Foundry.Core/Services/Agents/`: `ChiefOfStaffAgent`, `EngineeringDeskAgent`, `SuiteContextAgent`, `GrowthOpsAgent`, `MLEngineerAgent`.
 - Agent dispatch in `SendChatAsync` replaces `PromptComposer.ComposeChat()`, with fallback to direct `IModelProvider`.
 - `DeskThreadState.Summary` for multi-turn memory. `DeskMessageRecord.ToolCalls` for tool invocation records.
 
@@ -322,13 +319,13 @@ The WPF client currently calls ML endpoints and waits for the response. With the
 
 ---
 
-## Phase 9 — WPF Client Async Integration ✅ COMPLETE
+## Phase 9 — Async Integration & Semantic Client Support ✅ COMPLETE
 
-**Goal:** Update the WPF desktop client to use the async job model and semantic search.
+**Goal:** Add client-side job polling and semantic knowledge search support to broker consumers.
 
 - `JobPollingService` submits ML requests and polls `GET /api/jobs/{jobId}` every 2 seconds.
 - `KnowledgeSearchService` calls `POST /api/knowledge/search` for semantic search with similarity scores.
-- `KnowledgeSearchResult` model. `ToolCallRecord` in `DeskMessageRecord` surfaces tool use to the WPF UI.
+- `KnowledgeSearchResult` model. `ToolCallRecord` in `DeskMessageRecord` surfaces tool use.
 
 ---
 
