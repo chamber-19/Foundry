@@ -96,30 +96,27 @@ public sealed class FoundrySettings
 
     private static string GetDefaultKnowledgeLibraryPath()
     {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(userProfile))
-        {
-            return Path.Combine(userProfile, "Dropbox", "SuiteWorkspace", "Foundry", "Knowledge");
-        }
-
-        return Path.Combine(
-            "C:\\Users\\Public",
-            "Dropbox",
-            "SuiteWorkspace",
-            "Foundry",
-            "Knowledge"
-        );
+        var stateRoot = GetDefaultStateRootPath();
+        return Path.Combine(stateRoot, "knowledge");
     }
 
     private static string GetDefaultStateRootPath()
     {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(userProfile))
+        var envVal = Environment.GetEnvironmentVariable("FOUNDRY_STATE_ROOT");
+        if (!string.IsNullOrWhiteSpace(envVal))
         {
-            return Path.Combine(userProfile, "Dropbox", "SuiteWorkspace", "Foundry", "State");
+            return envVal;
         }
 
-        return Path.Combine("C:\\Users\\Public", "Dropbox", "SuiteWorkspace", "Foundry", "State");
+        if (OperatingSystem.IsWindows())
+        {
+            return @"C:\FoundryState";
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return string.IsNullOrWhiteSpace(home)
+            ? Path.Combine("/tmp", "foundry-state")
+            : Path.Combine(home, "foundry-state");
     }
 
     private static void MergeSettingsFile(JsonObject target, string path)

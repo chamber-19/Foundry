@@ -3,7 +3,9 @@ $scoringModel = if ($env:FOUNDRY_SCORING_MODEL) { $env:FOUNDRY_SCORING_MODEL } e
 $webhook = "https://discord.com/api/webhooks/1490590808603361291/SCVngVWu8BmQ87KBfwWZsKjk1nlwrOmSMcfy8F_tn2v2ELtJcDLGWKNhO3Zwy5pAMl_l"
 $userId = "1356296581472718988"
 $ghToken = $env:GITHUB_TOKEN
-$suggestionsFile = "$HOME\.office-suggestions.json"
+$stateRoot = if ($env:FOUNDRY_STATE_ROOT) { $env:FOUNDRY_STATE_ROOT } else { "$HOME\FoundryState" }
+if (-not (Test-Path $stateRoot)) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
+$suggestionsFile = "$stateRoot\foundry-suggestions.json"
 
 try {
     $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }

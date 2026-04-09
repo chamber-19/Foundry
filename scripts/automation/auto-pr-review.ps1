@@ -283,7 +283,7 @@ foreach ($repo in $repos) {
             # Load conventions context
             $conventionsContext = ""
             try {
-                $conventionsPath = Join-Path (Split-Path $PSScriptRoot) "Docs" "CONVENTIONS.md"
+                $conventionsPath = Join-Path (Split-Path (Split-Path $PSScriptRoot)) "docs" "CONVENTIONS.md"
                 if (Test-Path $conventionsPath) {
                     $conventionsContext = Get-Content $conventionsPath -Raw
                     if ($conventionsContext.Length -gt 3000) {
@@ -464,7 +464,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
 
             # Optional schema validation (non-blocking — logs warning only)
             try {
-                $validateScript = Join-Path $PSScriptRoot "scoring\validate_schema.py"
+                $validateScript = Join-Path (Split-Path $PSScriptRoot) "scoring\validate_schema.py"
                 if (Test-Path $validateScript) {
                     $validationJson = $trainingRecord | ConvertTo-Json -Compress -Depth 10
                     $validationResult = $validationJson | & python $validateScript 2>&1

@@ -251,7 +251,7 @@ public sealed class MLAnalyticsService
         }
 
         var inputJson = JsonSerializer.Serialize(input, _jsonOptions);
-        var tempInputPath = Path.Combine(Path.GetTempPath(), $"office-ml-{Guid.NewGuid()}.json");
+        var tempInputPath = Path.Combine(Path.GetTempPath(), $"foundry-ml-{Guid.NewGuid()}.json");
 
         try
         {

@@ -32,7 +32,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$ScriptsRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$ScriptsRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
     [string]$CondaEnv = "foundry-scoring",
     [switch]$Force
 )

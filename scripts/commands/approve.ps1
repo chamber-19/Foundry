@@ -13,12 +13,12 @@ $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 
 # Parse repo and PR number
-if ($prRef -match '^(Office|Suite)#(\d+)$') {
+if ($prRef -match '^(Foundry|Suite)#(\d+)$') {
     $repoShort = $Matches[1]
     $prNumber = $Matches[2]
     $repo = "Koraji95-coder/$repoShort"
 } else {
-    Write-Host "Invalid format. Use: approve Office#27"
+    Write-Host "Invalid format. Use: approve Foundry#27"
     return
 }
 

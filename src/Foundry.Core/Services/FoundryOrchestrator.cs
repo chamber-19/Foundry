@@ -54,10 +54,9 @@ public sealed class FoundryOrchestrator
         var lf = loggerFactory ?? NullLoggerFactory.Instance;
         _brokerMetadata = brokerMetadata;
         _foundryRootPath = ResolveFoundryRootPath(AppContext.BaseDirectory);
-        var settingsRoot = Path.Combine(_foundryRootPath, "Foundry");
-        _settings = FoundrySettings.Load(settingsRoot);
-        _knowledgeLibraryPath = _settings.ResolveKnowledgeLibraryPath(settingsRoot);
-        _stateRootPath = _settings.ResolveStateRootPath(settingsRoot);
+        _settings = FoundrySettings.Load(_foundryRootPath);
+        _knowledgeLibraryPath = _settings.ResolveKnowledgeLibraryPath(_foundryRootPath);
+        _stateRootPath = _settings.ResolveStateRootPath(_foundryRootPath);
         Directory.CreateDirectory(_knowledgeLibraryPath);
         Directory.CreateDirectory(_stateRootPath);
         _additionalKnowledgePaths = _settings.ResolveAdditionalKnowledgePaths();
@@ -75,12 +74,12 @@ public sealed class FoundryOrchestrator
         _modelProvider = new OllamaService(_settings.OllamaEndpoint, _processRunner, ollamaPipeline, lf.CreateLogger<OllamaService>());
         _knowledgeImportService = new KnowledgeImportService(
             _processRunner,
-            Path.Combine(_foundryRootPath, "Foundry", "Scripts", "extract_document_text.py")
+            Path.Combine(_foundryRootPath, "scripts", "ml", "extract_document_text.py")
         );
         _mlAnalyticsService = new MLAnalyticsService(
             _processRunner,
-            Path.Combine(_foundryRootPath, "Foundry", "Scripts"),
-            new OnnxMLEngine(Path.Combine(_foundryRootPath, "Foundry", "Models", "onnx")),
+            Path.Combine(_foundryRootPath, "scripts", "ml"),
+            new OnnxMLEngine(Path.Combine(_foundryRootPath, "models", "onnx")),
             resiliencePipeline: pythonPipeline,
             logger: lf.CreateLogger<MLAnalyticsService>()
         );

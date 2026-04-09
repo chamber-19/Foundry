@@ -174,13 +174,13 @@ async def review(interaction: discord.Interaction):
 
 
 @tree.command(name="approve", description="Approve a PR and log the decision", guild=guild)
-@app_commands.describe(pr_ref="PR reference (e.g. Office#27 or Suite#54)")
+@app_commands.describe(pr_ref="PR reference (e.g. Foundry#27 or Suite#54)")
 async def approve(interaction: discord.Interaction, pr_ref: str):
     await run_script(interaction, "approve.ps1", "Approve", script_dir="commands", extra_args=[pr_ref])
 
 
 @tree.command(name="reject", description="Reject a PR and log the decision", guild=guild)
-@app_commands.describe(pr_ref="PR reference (e.g. Office#31 or Suite#57)", reason="Reason for rejection")
+@app_commands.describe(pr_ref="PR reference (e.g. Foundry#31 or Suite#57)", reason="Reason for rejection")
 async def reject(interaction: discord.Interaction, pr_ref: str, reason: str = "No reason given"):
     await run_script(interaction, "reject.ps1", "Reject", script_dir="commands", extra_args=[pr_ref, reason])
 

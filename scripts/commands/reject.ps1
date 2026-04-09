@@ -12,12 +12,12 @@ $memoryFile = "$stateRoot\decision-memory.json"
 $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 
-if ($prRef -match '^(Office|Suite)#(\d+)$') {
+if ($prRef -match '^(Foundry|Suite)#(\d+)$') {
     $repoShort = $Matches[1]
     $prNumber = $Matches[2]
     $repo = "Koraji95-coder/$repoShort"
 } else {
-    Write-Host "Invalid format. Use: reject Office#31 'reason here'"
+    Write-Host "Invalid format. Use: reject Foundry#31 'reason here'"
     return
 }
 

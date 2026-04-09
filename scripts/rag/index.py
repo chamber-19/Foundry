@@ -14,7 +14,7 @@ def _resolve_state_root() -> str:
 
 
 DB_PATH = _resolve_state_root()
-REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", os.path.expanduser("~/OneDrive/Documents/GitHub"))
+REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", os.path.join(os.path.expanduser("~"), "Documents", "GitHub"))
 EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".py", ".ps1", ".json", ".md", ".yml", ".yaml", ".css", ".html", ".sh"}
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "venv"}
 MAX_FILE_SIZE = 50_000
