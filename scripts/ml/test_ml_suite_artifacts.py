@@ -150,6 +150,28 @@ class TestUnexpectedExceptionPath(unittest.TestCase):
             result = _run_main_with_input(_MINIMAL_VALID_INPUT)
         self.assertEqual(result["error"], _STATIC_UNEXPECTED_ERROR)
 
+    def test_index_error_returns_static_detail(self):
+        """An IndexError raised inside an artifact builder must produce static detail."""
+        with patch.object(_module, "_build_operator_readiness", side_effect=IndexError("list index out of range")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_unexpected_error_response(result)
+
+    def test_index_error_message_not_leaked_in_response(self):
+        """Raw IndexError message must NOT appear in the error detail (no information disclosure)."""
+        sentinel = "SENSITIVE_INDEX_DETAIL_67890"
+        with patch.object(_module, "_build_operator_readiness", side_effect=IndexError(sentinel)):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self.assertNotIn(sentinel, result.get("error", ""))
+        self.assertNotIn(sentinel, json.dumps(result))
+
+    def test_key_error_message_not_leaked_in_response(self):
+        """Raw KeyError message must NOT appear in the error detail (no information disclosure)."""
+        sentinel = "SENSITIVE_KEY_DETAIL_11223"
+        with patch.object(_module, "_build_operator_readiness", side_effect=KeyError(sentinel)):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self.assertNotIn(sentinel, result.get("error", ""))
+        self.assertNotIn(sentinel, json.dumps(result))
+
 
 # ---------------------------------------------------------------------------
 # Group 3: Happy path / valid input
