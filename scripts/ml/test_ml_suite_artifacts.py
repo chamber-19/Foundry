@@ -5,6 +5,9 @@ Verifies that all exception paths produce compliant static error detail strings:
   - JSONDecodeError → {"ok": false, "error": "Invalid JSON input."}
   - Unexpected exceptions → {"ok": false, "error": "An unexpected error occurred. See server logs for details."}
   - Happy path → {"ok": true, "artifacts": [...]}
+  - Extended exception types (OSError, OverflowError, ZeroDivisionError, MemoryError,
+    NotImplementedError, chained exceptions, and custom application-specific errors)
+    → all must produce the same static error string with no information disclosure
 """
 
 import json
@@ -30,6 +33,19 @@ _STATIC_UNEXPECTED_ERROR = (
     "An unexpected error occurred. See server logs for details."
 )
 _STATIC_JSON_ERROR = "Invalid JSON input."
+
+# ---------------------------------------------------------------------------
+# Custom application-specific exception classes (Python analogs of the C#
+# InvalidOperationException / ArgumentException patterns documented in
+# CONVENTIONS.md — used to verify that app-specific errors are also sanitized)
+# ---------------------------------------------------------------------------
+class _FoundryInvalidOperationError(Exception):
+    """Simulates an invalid pipeline-state error (cf. C# InvalidOperationException)."""
+
+
+class _FoundryConfigurationError(Exception):
+    """Simulates a misconfiguration error specific to the Foundry application."""
+
 
 _MINIMAL_VALID_INPUT = json.dumps(
     {
@@ -152,7 +168,103 @@ class TestUnexpectedExceptionPath(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Group 3: Happy path / valid input
+# Group 3: Extended exception types
+# ---------------------------------------------------------------------------
+class TestExtendedExceptionCoverage(unittest.TestCase):
+    """Additional exception types must all produce the same static error string."""
+
+    def _assert_sanitized(self, result: dict) -> None:
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], _STATIC_UNEXPECTED_ERROR)
+
+    # -- stdlib exceptions not covered by Group 2 --
+
+    def test_os_error_returns_static_detail(self):
+        """OSError (e.g. from file I/O in artifact helpers) must be sanitized."""
+        with patch.object(_module, "_build_knowledge_index", side_effect=OSError("disk error")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    def test_not_implemented_error_returns_static_detail(self):
+        """NotImplementedError from an incomplete artifact builder must be sanitized."""
+        with patch.object(_module, "_build_study_schedule", side_effect=NotImplementedError("not yet")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    def test_overflow_error_returns_static_detail(self):
+        """OverflowError from numerical computation in ML metrics must be sanitized."""
+        with patch.object(_module, "_build_watchdog_baseline", side_effect=OverflowError("overflow")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    def test_zero_division_error_returns_static_detail(self):
+        """ZeroDivisionError from accuracy or ratio calculations must be sanitized."""
+        with patch.object(_module, "_build_operator_readiness", side_effect=ZeroDivisionError("div by zero")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    def test_memory_error_returns_static_detail(self):
+        """MemoryError can occur during large-dataset ML operations."""
+        with patch.object(_module, "_build_knowledge_index", side_effect=MemoryError("out of memory")):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    # -- Custom application-specific exceptions (analogous to C# patterns in CONVENTIONS.md) --
+
+    def test_foundry_invalid_operation_error_returns_static_detail(self):
+        """Application-specific InvalidOperationException analog must be sanitized."""
+        with patch.object(
+            _module,
+            "_build_operator_readiness",
+            side_effect=_FoundryInvalidOperationError("No active ML job."),
+        ):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    def test_foundry_configuration_error_returns_static_detail(self):
+        """Application-specific configuration error must be sanitized."""
+        with patch.object(
+            _module,
+            "_build_study_schedule",
+            side_effect=_FoundryConfigurationError("FOUNDRY_STATE_ROOT is not configured."),
+        ):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+
+    # -- Information-disclosure checks for the new types --
+
+    def test_os_error_message_not_leaked(self):
+        sentinel = "SENSITIVE_OS_DETAIL_99999"
+        with patch.object(_module, "_build_knowledge_index", side_effect=OSError(sentinel)):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self.assertNotIn(sentinel, json.dumps(result))
+
+    def test_custom_app_error_message_not_leaked(self):
+        sentinel = "SENSITIVE_APP_DETAIL_88888"
+        with patch.object(
+            _module,
+            "_build_operator_readiness",
+            side_effect=_FoundryInvalidOperationError(sentinel),
+        ):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self.assertNotIn(sentinel, json.dumps(result))
+
+    def test_chained_exception_cause_not_leaked(self):
+        """When an exception is chained (raise X from Y), the cause must not appear in the response."""
+        sentinel = "SENSITIVE_CAUSE_77777"
+
+        def _raise_chained(*_args, **_kwargs):
+            cause = ValueError(sentinel)
+            raise RuntimeError("wrapper error") from cause
+
+        with patch.object(_module, "_build_operator_readiness", side_effect=_raise_chained):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self._assert_sanitized(result)
+        self.assertNotIn(sentinel, json.dumps(result))
+
+
+# ---------------------------------------------------------------------------
+# Group 4: Happy path / valid input
 # ---------------------------------------------------------------------------
 class TestHappyPath(unittest.TestCase):
     """Valid inputs must produce ok=True with all four artifact types."""
