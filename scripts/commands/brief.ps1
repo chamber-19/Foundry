@@ -3,8 +3,8 @@ $userId = "1356296581472718988"
 $ghToken = $env:GITHUB_TOKEN
 $headers = @{ Authorization = "Bearer $ghToken"; Accept = "application/vnd.github.v3+json" }
 
-$officePRs = Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Office/pulls?state=open&per_page=10" -Headers $headers
-$officeIssues = Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Office/issues?state=open&per_page=20&labels=ai-suggested" -Headers $headers
+$officePRs = Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Foundry/pulls?state=open&per_page=10" -Headers $headers
+$officeIssues = Invoke-RestMethod -Uri "https://api.github.com/repos/Koraji95-coder/Foundry/issues?state=open&per_page=20&labels=ai-suggested" -Headers $headers
 
 $officePRList = ($officePRs | ForEach-Object { "- [#$($_.number)]($($_.html_url)) $($_.title) $(if($_.draft){'(draft)'})" }) -join "`n"
 $officeIssueList = ($officeIssues | ForEach-Object { "- [#$($_.number)]($($_.html_url)) $($_.title)" }) -join "`n"
@@ -19,8 +19,8 @@ $payload = @{
             title = "Daily Brief"
             color = 5793266
             fields = @(
-                @{ name = "Office PRs ($($officePRs.Count))"; value = $officePRList; inline = $false }
-                @{ name = "Office Issues ($($officeIssues.Count)/20)"; value = $officeIssueList; inline = $false }
+                @{ name = "Foundry PRs ($($officePRs.Count))"; value = $officePRList; inline = $false }
+                @{ name = "Foundry Issues ($($officeIssues.Count)/20)"; value = $officeIssueList; inline = $false }
             )
             footer = @{ text = "Requested via brief command" }
             timestamp = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")

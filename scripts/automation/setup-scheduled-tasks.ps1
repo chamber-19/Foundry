@@ -1,39 +1,39 @@
 <#
 .SYNOPSIS
-    Registers all Office automation Windows Scheduled Tasks.
+    Registers all Foundry automation Windows Scheduled Tasks.
 
 .DESCRIPTION
-    Creates and registers the following scheduled tasks under the \Office\ folder:
-      - RAG-Nightly-Reindex   : Re-indexes Office repo into the ChromaDB RAG database every 90 minutes.
+    Creates and registers the following scheduled tasks under the \Foundry\ folder:
+      - RAG-Nightly-Reindex   : Re-indexes Foundry repo into the ChromaDB RAG database every 90 minutes.
       - Auto-PR-Review        : Reviews and scores Copilot PRs, auto-merges high-scoring ones.
       - AIAutoPipeline        : Creates AI-suggested GitHub issues from RAG context.
       - Health-Check          : Pings Ollama every 15 minutes and alerts Discord if down.
       - Daily-Brief           : Sends a morning brief via Ollama to Discord at 07:00.
       - Repo-Scan-Issues      : Scans repos for gaps and suggests new issues every 6 hours.
-      - Office-ML-Retrain     : Retrains the PR scoring ML model nightly at 02:00.
+      - Foundry-ML-Retrain    : Retrains the PR scoring ML model nightly at 02:00.
 
     Run this script once from an elevated PowerShell prompt.
     Re-running is safe -- existing tasks are removed and re-created.
 
 .PARAMETER ScriptsRoot
-    Path to the Office/scripts directory. Defaults to the directory containing this script.
+    Path to the Foundry/scripts directory. Defaults to the directory containing this script.
 
 .PARAMETER CondaEnv
-    Name of the conda environment for Python scripts. Defaults to 'office-scoring'.
+    Name of the conda environment for Python scripts. Defaults to 'foundry-scoring'.
 
 .PARAMETER Force
     If specified, removes and re-creates tasks without prompting.
 
 .EXAMPLE
     .\setup-scheduled-tasks.ps1
-    .\setup-scheduled-tasks.ps1 -ScriptsRoot "C:\Users\koraj\OneDrive\Documents\GitHub\Office\scripts"
+    .\setup-scheduled-tasks.ps1 -ScriptsRoot "$env:FOUNDRY_REPO_ROOT\scripts"
     .\setup-scheduled-tasks.ps1 -Force
 #>
 
 [CmdletBinding()]
 param(
     [string]$ScriptsRoot = (Split-Path -Parent $PSScriptRoot),
-    [string]$CondaEnv = "office-scoring",
+    [string]$CondaEnv = "foundry-scoring",
     [switch]$Force
 )
 
@@ -46,13 +46,13 @@ if (-not (Test-Path $ScriptsDir)) {
     $ScriptsDir = $PSScriptRoot
 }
 
-$TaskFolder = "\Office\"
+$TaskFolder = "\Foundry\"
 $Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
 # ──────────────────────────────────────────────
 # Helper: Register or replace a single task
 # ──────────────────────────────────────────────
-function Register-OfficeTask {
+function Register-FoundryTask {
     param(
         [string]$Name,
         [Microsoft.Management.Infrastructure.CimInstance]$Trigger,
@@ -102,7 +102,7 @@ function Register-OfficeTask {
 # ──────────────────────────────────────────────
 # Validate prerequisites
 # ──────────────────────────────────────────────
-Write-Host "`n=== Office Scheduled Tasks Setup ===" -ForegroundColor Cyan
+Write-Host "`n=== Foundry Scheduled Tasks Setup ===" -ForegroundColor Cyan
 Write-Host "Scripts directory: $ScriptsDir"
 
 $requiredScripts = @(
@@ -161,11 +161,11 @@ $ragAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $ScriptsDir 'rag\reindex.ps1')`"" `
     -WorkingDirectory $ScriptsDir
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "RAG-Nightly-Reindex" `
     -Trigger $ragTrigger `
     -Action $ragAction `
-    -Description "Re-indexes Office repo into the ChromaDB RAG database every 90 minutes."
+    -Description "Re-indexes Foundry repo into the ChromaDB RAG database every 90 minutes."
 
 # ──────────────────────────────────────────────
 # 2. Auto-PR-Review -- every 30 minutes
@@ -176,7 +176,7 @@ $prAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $ScriptsDir 'auto-pr-review.ps1')`"" `
     -WorkingDirectory $ScriptsDir
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "Auto-PR-Review" `
     -Trigger $prTrigger `
     -Action $prAction `
@@ -191,7 +191,7 @@ $issueAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $ScriptsDir 'auto-issue-pipeline.ps1')`"" `
     -WorkingDirectory $ScriptsDir
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "AIAutoPipeline" `
     -Trigger $issueTrigger `
     -Action $issueAction `
@@ -212,7 +212,7 @@ $healthSettings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "Health-Check" `
     -Trigger $healthTrigger `
     -Action $healthAction `
@@ -228,7 +228,7 @@ $briefAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $ScriptsDir 'discord-daily-brief.ps1')`"" `
     -WorkingDirectory $ScriptsDir
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "Daily-Brief" `
     -Trigger $briefTrigger `
     -Action $briefAction `
@@ -243,7 +243,7 @@ $scanAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $ScriptsDir 'repo-scan-issues.ps1')`"" `
     -WorkingDirectory $ScriptsDir
 
-Register-OfficeTask `
+Register-FoundryTask `
     -Name "Repo-Scan-Issues" `
     -Trigger $scanTrigger `
     -Action $scanAction `
@@ -274,8 +274,8 @@ $retrainSettings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
 
-Register-OfficeTask `
-    -Name "Office-ML-Retrain" `
+Register-FoundryTask `
+    -Name "Foundry-ML-Retrain" `
     -Trigger $retrainTrigger `
     -Action $retrainAction `
     -Description "Retrains the PR scoring GradientBoosting model nightly from accumulated decision memory. Saves model to State/ml-artifacts/." `
@@ -303,8 +303,8 @@ try {
 Write-Host @"
 
 NEXT STEPS:
-  1. Verify tasks:  Get-ScheduledTask -TaskPath '\Office\'
-  2. Test a task:    Start-ScheduledTask -TaskPath '\Office\' -TaskName 'Health-Check'
+  1. Verify tasks:  Get-ScheduledTask -TaskPath '\Foundry\'
+  2. Test a task:    Start-ScheduledTask -TaskPath '\Foundry\' -TaskName 'Health-Check'
   3. Check logs:     Get-Content `$HOME\.office-rag-db\reindex.log -Tail 20
   4. View status:    powershell -File '$ScriptsDir\commands\status.ps1'
 
