@@ -144,6 +144,15 @@ class TestUnexpectedExceptionPath(unittest.TestCase):
         self.assertNotIn(sentinel, result.get("error", ""))
         self.assertNotIn(sentinel, json.dumps(result))
 
+    def test_value_error_message_not_leaked_in_response(self):
+        """Raw ValueError message must NOT appear anywhere in the response (no information disclosure)."""
+        sentinel = "SENSITIVE_VALUE_ERROR_DETAIL_67890"
+        with patch.object(_module, "_build_study_schedule", side_effect=ValueError(sentinel)):
+            result = _run_main_with_input(_MINIMAL_VALID_INPUT)
+        self.assertFalse(result["ok"])
+        self.assertNotIn(sentinel, result.get("error", ""))
+        self.assertNotIn(sentinel, json.dumps(result))
+
     def test_unexpected_error_detail_is_static_string(self):
         """Error detail must be exactly the required static string, not a dynamic value."""
         with patch.object(_module, "_build_operator_readiness", side_effect=Exception("dynamic msg")):
