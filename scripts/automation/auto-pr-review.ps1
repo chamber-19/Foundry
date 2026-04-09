@@ -460,6 +460,9 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
                 concerns    = if ($parsedJson) { $parsedJson.concerns } else { @() }
                 summary     = if ($parsedJson) { $parsedJson.summary } else { ($review -split "`n")[0..2] -join " " }
                 timestamp   = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+                code_coverage         = $null
+                technical_debt        = $null
+                cyclomatic_complexity = $null
             }
 
             # Optional schema validation (non-blocking — logs warning only)

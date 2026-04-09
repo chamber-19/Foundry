@@ -171,6 +171,27 @@
     "summary": {
       "type": "string",
       "description": "Short summary of the PR from the LLM reviewer"
+    },
+    "code_coverage": {
+      "oneOf": [
+        { "type": "number", "minimum": 0.0, "maximum": 100.0 },
+        { "type": "null" }
+      ],
+      "description": "Code coverage percentage reported by the CI pipeline (0.0–100.0, null if unavailable)"
+    },
+    "technical_debt": {
+      "oneOf": [
+        { "type": "number", "minimum": 0.0 },
+        { "type": "null" }
+      ],
+      "description": "Technical debt estimate in lines-of-code per fix (null if unavailable)"
+    },
+    "cyclomatic_complexity": {
+      "oneOf": [
+        { "type": "number", "minimum": 0.0 },
+        { "type": "null" }
+      ],
+      "description": "Average cyclomatic complexity of changed files (null if unavailable)"
     }
   }
 }
