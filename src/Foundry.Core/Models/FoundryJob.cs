@@ -26,6 +26,7 @@ public sealed class FoundryJob
     public string? ResultJson { get; set; }
     public string? RequestedBy { get; set; }
     public string? RequestPayload { get; set; }
+    public string? TraceId { get; set; }
 }
 
 /// <summary>

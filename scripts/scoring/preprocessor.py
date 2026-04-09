@@ -311,17 +311,13 @@ def _classify_area(files) -> str:
 
 
 def _resolve_state_root() -> str:
-    """Resolve the State root path: env var first, then Dropbox default."""
-    env_val = os.environ.get("OFFICE_STATE_ROOT", "")
+    """Resolve the State root path: FOUNDRY_STATE_ROOT env var first, then platform default."""
+    env_val = os.environ.get("FOUNDRY_STATE_ROOT", "")
     if env_val:
         return env_val
-    return os.path.join(
-        os.path.expanduser("~"),
-        "Dropbox",
-        "SuiteWorkspace",
-        "Office",
-        "State",
-    )
+    if sys.platform == "win32":
+        return r"C:\FoundryState"
+    return os.path.join(os.path.expanduser("~"), "foundry-state")
 
 
 def _ml_historical_score(pr_data, full_memory, area) -> tuple[int, str]:

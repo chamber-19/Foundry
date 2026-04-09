@@ -46,7 +46,10 @@ public sealed class MLResultStore
     /// </summary>
     public void SaveEmbeddings(MLEmbeddingsResult result)
     {
-        Upsert(_db.MLEmbeddingsResults, result, result.Engine, result.Ok);
+        var firstEmbedding = result.Embeddings.Count > 0 ? result.Embeddings[0] : null;
+        Upsert(_db.MLEmbeddingsResults, result, result.Engine, result.Ok,
+            embeddingModel: result.Engine,
+            embeddingDim: firstEmbedding?.Dimensions);
         _logger.LogDebug("Persisted ML embeddings result (engine={Engine}, ok={Ok}).", result.Engine, result.Ok);
     }
 
@@ -97,7 +100,8 @@ public sealed class MLResultStore
         return latest;
     }
 
-    private static void Upsert<T>(LiteDB.ILiteCollection<PersistedMLResult> collection, T result, string engine, bool ok)
+    private static void Upsert<T>(LiteDB.ILiteCollection<PersistedMLResult> collection, T result, string engine, bool ok,
+        string? embeddingModel = null, int? embeddingDim = null)
     {
         var record = new PersistedMLResult
         {
@@ -106,6 +110,8 @@ public sealed class MLResultStore
             CompletedAt = DateTimeOffset.Now,
             Engine = engine,
             Ok = ok,
+            EmbeddingModel = embeddingModel,
+            EmbeddingDim = embeddingDim,
         };
         collection.Upsert(record);
     }

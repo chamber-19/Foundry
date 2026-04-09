@@ -193,10 +193,10 @@ class TestHappyPath(unittest.TestCase):
             for field in required:
                 self.assertIn(field, artifact, f"Missing field '{field}' in {artifact['artifactType']}")
 
-    def test_source_is_office_ml_pipeline(self):
+    def test_source_is_foundry_ml_pipeline(self):
         result = _run_main_with_input(_MINIMAL_VALID_INPUT)
         for artifact in result["artifacts"]:
-            self.assertEqual(artifact["source"], "office-ml-pipeline")
+            self.assertEqual(artifact["source"], "foundry-ml-pipeline")
 
     def test_version_is_semver(self):
         result = _run_main_with_input(_MINIMAL_VALID_INPUT)

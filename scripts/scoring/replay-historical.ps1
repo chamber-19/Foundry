@@ -2,7 +2,7 @@
 # REPLAY-HISTORICAL.ps1
 # Runs on Machine 2 (100.65.90.57)
 #
-# Fetches all closed PRs from Koraji95-coder/Office via the
+# Fetches all closed PRs from Koraji95-coder/Foundry via the
 # GitHub API (read-only), scores each one locally with
 # qwen3:8b via Ollama, and appends results to:
 #   $HOME\.office-rag-db\historical-scores.jsonl
@@ -10,8 +10,8 @@
 # Idempotent — already-scored PRs are skipped.
 # ============================================================
 
-$repo      = "Koraji95-coder/Office"
-$repoShort = "Office"
+$repo      = "Koraji95-coder/Foundry"
+$repoShort = "Foundry"
 $model     = "qwen3:8b"
 $outputDir = "$HOME\.office-rag-db"
 $outputFile = "$outputDir\historical-scores.jsonl"

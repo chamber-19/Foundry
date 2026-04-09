@@ -31,4 +31,14 @@ public sealed class PersistedMLResult
     /// Whether the result was a real ML result (true) or a degraded fallback (false).
     /// </summary>
     public bool Ok { get; set; }
+
+    /// <summary>
+    /// Name of the embedding model used (e.g. "pytorch", "tfidf"), when applicable.
+    /// </summary>
+    public string? EmbeddingModel { get; set; }
+
+    /// <summary>
+    /// Dimensionality of the embedding vectors, when applicable.
+    /// </summary>
+    public int? EmbeddingDim { get; set; }
 }

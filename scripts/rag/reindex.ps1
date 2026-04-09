@@ -1,9 +1,10 @@
 # RAG Re-Index with Safe Git Pull
-# Pulls latest from Office repo, then re-indexes the codebase
+# Pulls latest from Foundry repo, then re-indexes the codebase
 $logFile = "$HOME\.office-rag-db\reindex.log"
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$repoRoot = if ($env:FOUNDRY_REPO_ROOT) { $env:FOUNDRY_REPO_ROOT } else { "$env:USERPROFILE\Documents\GitHub\Foundry" }
 $repos = @(
-    "C:\Users\koraj\OneDrive\Documents\GitHub\Office"
+    $repoRoot
 )
 
 function Safe-Pull {
@@ -63,7 +64,7 @@ foreach ($repo in $repos) {
 
 # Re-index
 try {
-    $output = & python "C:\Users\koraj\OneDrive\Documents\GitHub\Office\scripts\rag\index.py" 2>&1 | Out-String
+    $output = & python "$repoRoot\scripts\rag\index.py" 2>&1 | Out-String
     "$timestamp | REINDEX | SUCCESS | $output" | Out-File -Append -FilePath $logFile
 } catch {
     "$timestamp | REINDEX | FAILED | $($_.Exception.Message)" | Out-File -Append -FilePath $logFile
