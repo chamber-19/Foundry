@@ -46,7 +46,7 @@ public sealed class MLResultStore
     /// </summary>
     public void SaveEmbeddings(MLEmbeddingsResult result)
     {
-        var firstEmbedding = result.Embeddings.Count > 0 ? result.Embeddings[0] : null;
+        var firstEmbedding = result.Embeddings is { Count: > 0 } ? result.Embeddings[0] : null;
         Upsert(_db.MLEmbeddingsResults, result, result.Engine, result.Ok,
             embeddingModel: result.Engine,
             embeddingDim: firstEmbedding?.Dimensions);
