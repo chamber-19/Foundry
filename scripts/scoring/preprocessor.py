@@ -87,9 +87,26 @@ def load_full_memory() -> list[dict[str, Any]]:
 # ========== GATES ==========
 
 def gate_builds(ci_status):
-    if ci_status == "failure":
-        return False, "CI checks failed"
-    return True, f"CI status: {ci_status}"
+    # GitHub's mergeable_state uses: clean, dirty, blocked, unstable, unknown, behind, has_hooks
+    # Also support legacy values: failure, success, pending, none
+    status = (ci_status or "none").lower().strip()
+
+    # Hard failures — block scoring entirely
+    if status == "failure":
+        return False, f"CI checks failed ({status})"
+    if status == "unstable":
+        return False, f"CI checks are unstable — some checks failed ({status})"
+    if status == "dirty":
+        return False, f"Merge conflicts detected ({status})"
+    if status == "blocked":
+        return False, f"Branch protection rules block merge ({status})"
+
+    # Known good states
+    if status in ("clean", "success"):
+        return True, f"CI status: {status}"
+
+    # Ambiguous / unknown / pending states — allow but note it
+    return True, f"CI status: {status}"
 
 
 def gate_duplicate(pr_title, pr_files, recent_merges):
@@ -438,11 +455,12 @@ def _compute_confidence(result: dict[str, Any]) -> float:
     # Base confidence from signal coverage (signals at max = high confidence)
     base = actual / max_possible if max_possible > 0 else 0.5
 
-    # Boost if CI status is known
+    # Boost if CI status is definitively known
     ci_gate = result.get("gates", {}).get("builds", {})
-    if ci_gate.get("reason", "").startswith("CI status: success"):
+    ci_reason = ci_gate.get("reason", "")
+    if "clean" in ci_reason or "success" in ci_reason:
         base = min(1.0, base + 0.1)
-    elif ci_gate.get("reason", "").startswith("CI status: none"):
+    elif "none" in ci_reason or "unknown" in ci_reason:
         base = max(0.0, base - 0.1)
 
     return round(base, 3)

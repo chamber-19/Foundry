@@ -1,4 +1,4 @@
-name: office-scoring
+name: foundry-scoring
 channels:
   - defaults
 dependencies:
