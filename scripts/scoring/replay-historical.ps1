@@ -148,6 +148,9 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
     try {
         $response = Invoke-RestMethod -Uri "http://localhost:11434/api/chat" -Method POST -ContentType "application/json" -Body $chatBody
         $review = $response.message.content
+        # Strip DeepSeek-R1 thinking tags before parsing
+        $review = $review -replace '(?s)<think>.*?</think>', ''
+        $review = $review.Trim()
     } catch {
         Write-Host "  SKIP: Ollama call failed — $($_.Exception.Message)"
         $skipped++
