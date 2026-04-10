@@ -116,7 +116,7 @@ def gate_conflict(pr_number, pr_files, open_pr_files):
     """Check if this PR has high file overlap with other open PRs."""
     conflicts = []
     for other_number, other_files in (open_pr_files or {}).items():
-        if other_number == pr_number:
+        if int(other_number) == pr_number:
             continue
         if not pr_files or not other_files:
             continue

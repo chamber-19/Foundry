@@ -258,6 +258,7 @@ foreach ($repo in $repos) {
 
             # ========== PREPROCESSOR: Deterministic scoring ==========
             $preprocessorResult = $null
+            $preprocessorError = $null
             $skipLlm = $false
             $llmRaw = $null
             try {
@@ -284,14 +285,31 @@ foreach ($repo in $repos) {
                 $tempFile = [System.IO.Path]::GetTempFileName()
                 Set-Content -Path $tempFile -Value $preprocessorInput -Encoding UTF8
 
-                $preprocessorScript = Join-Path (Split-Path $PSScriptRoot) "scoring" "preprocessor.py"
-                $prepOutput = & python $preprocessorScript $tempFile 2>&1 | Out-String
+                # Resolve Python executable: $env:FOUNDRY_PYTHON → python3 → python
+                $pythonExe = $null
+                if ($env:FOUNDRY_PYTHON -and (Test-Path $env:FOUNDRY_PYTHON)) {
+                    $pythonExe = $env:FOUNDRY_PYTHON
+                } else {
+                    foreach ($candidate in @("python3", "python")) {
+                        if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+                            $pythonExe = $candidate
+                            break
+                        }
+                    }
+                }
+                if (-not $pythonExe) { throw "No Python executable found. Set FOUNDRY_PYTHON or add python/python3 to PATH." }
+
+                # Resolve preprocessor path robustly from repo root
+                $repoRoot = if ($env:FOUNDRY_REPO_ROOT) { $env:FOUNDRY_REPO_ROOT } else { Split-Path (Split-Path $PSScriptRoot) }
+                $preprocessorScript = Join-Path $repoRoot "scripts" "scoring" "preprocessor.py"
+                $prepOutput = & $pythonExe $preprocessorScript $tempFile 2>$null | Out-String
                 Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
 
                 $preprocessorResult = $prepOutput | ConvertFrom-Json
                 Write-Host "Preprocessor: score=$($preprocessorResult.normalized_score)/10, confidence=$($preprocessorResult.confidence), engine=$($preprocessorResult.ml_engine)"
             } catch {
-                Write-Host "WARN: Preprocessor failed: $($_.Exception.Message) — proceeding with LLM-only scoring"
+                $preprocessorError = $_.Exception.Message
+                Write-Host "WARN: Preprocessor failed: $preprocessorError — proceeding with LLM-only scoring"
             }
 
             # If preprocessor ran and a gate failed, skip LLM entirely
@@ -532,6 +550,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
                 gate_failure_reason = if ($preprocessorResult) { $preprocessorResult.gate_failure_reason } else { $null }
                 signal_summary    = if ($preprocessorResult) { $preprocessorResult.signal_summary } else { $null }
                 ml_engine         = if ($preprocessorResult) { $preprocessorResult.ml_engine } else { "none" }
+                preprocessor_error = $preprocessorError
                 verdict           = $verdict
                 files             = $thisFiles
                 file_count        = $fileCount
