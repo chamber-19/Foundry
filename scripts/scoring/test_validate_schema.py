@@ -10,8 +10,11 @@ Covers:
   - Array item type validation
   - Return contract (always (bool, list[str]))
   - Manual fallback path (jsonschema patched out via sys.modules)
+  - CLI entry point error handling (stdin, static messages, exit codes)
 """
 
+import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -463,6 +466,71 @@ class TestManualFallback(unittest.TestCase):
             any("verdict" in e for e in errors),
             f"Expected 'verdict' in errors; got: {errors}",
         )
+
+
+
+
+# ---------------------------------------------------------------------------
+# Group 9: CLI entry point error handling
+# ---------------------------------------------------------------------------
+_SCRIPT_PATH = str(Path(__file__).parent / "validate_schema.py")
+
+
+class TestCLIEntryPoint(unittest.TestCase):
+    """Tests for the __main__ CLI entry point of validate_schema.py."""
+
+    def _run_cli(self, stdin_text: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, _SCRIPT_PATH],
+            input=stdin_text,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_valid_json_exits_zero(self):
+        result = self._run_cli(json.dumps(_valid_sample()))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("OK: sample is valid", result.stdout)
+
+    def test_invalid_json_exits_one(self):
+        result = self._run_cli("this is not json{{{")
+        self.assertEqual(result.returncode, 1)
+
+    def test_invalid_json_prints_static_error_to_stderr(self):
+        result = self._run_cli("not json at all")
+        self.assertIn("ERROR: invalid JSON input", result.stderr)
+
+    def test_invalid_json_error_does_not_expose_exception_details(self):
+        # The error message must not contain Python exception internals such as
+        # line/column numbers or the raw exception repr.
+        result = self._run_cli("{bad json}")
+        self.assertNotIn("JSONDecodeError", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertNotIn("line 1", result.stderr)
+
+    def test_empty_stdin_exits_one(self):
+        result = self._run_cli("")
+        self.assertEqual(result.returncode, 1)
+
+    def test_empty_stdin_prints_static_error(self):
+        result = self._run_cli("")
+        self.assertIn("ERROR: invalid JSON input", result.stderr)
+
+    def test_invalid_sample_exits_one(self):
+        sample = _valid_sample()
+        del sample["pr_number"]
+        result = self._run_cli(json.dumps(sample))
+        self.assertEqual(result.returncode, 1)
+
+    def test_invalid_sample_lists_errors(self):
+        sample = _valid_sample()
+        del sample["pr_number"]
+        result = self._run_cli(json.dumps(sample))
+        self.assertIn("INVALID", result.stdout)
+
+    def test_valid_output_contains_no_error(self):
+        result = self._run_cli(json.dumps(_valid_sample()))
+        self.assertEqual(result.stderr, "")
 
 
 if __name__ == "__main__":

@@ -156,11 +156,19 @@ def validate_sample(sample: dict) -> tuple[bool, list[str]]:
 if __name__ == "__main__":
     try:
         sample = json.load(sys.stdin)
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: could not parse JSON from stdin: {exc}", file=sys.stderr)
+    except json.JSONDecodeError:
+        print("ERROR: invalid JSON input", file=sys.stderr)
+        sys.exit(1)
+    except Exception:
+        print("ERROR: failed to read from stdin", file=sys.stderr)
         sys.exit(1)
 
-    ok, errs = validate_sample(sample)
+    try:
+        ok, errs = validate_sample(sample)
+    except Exception:
+        print("ERROR: internal validation error", file=sys.stderr)
+        sys.exit(1)
+
     if ok:
         print("OK: sample is valid")
         sys.exit(0)
