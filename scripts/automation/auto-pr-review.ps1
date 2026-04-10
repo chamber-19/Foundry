@@ -256,6 +256,64 @@ foreach ($repo in $repos) {
                 $diff = $diff.Substring(0, 14000) + "`n... (truncated)"
             }
 
+            # ========== PREPROCESSOR: Deterministic scoring ==========
+            $preprocessorResult = $null
+            $skipLlm = $false
+            $llmRaw = $null
+            try {
+                # Fetch commits for preprocessor
+                $commits = @()
+                try {
+                    $commits = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/pulls/$($pr.number)/commits?per_page=20" -Headers $headers
+                } catch {}
+
+                # Build the input JSON for preprocessor
+                $preprocessorInput = @{
+                    title           = $pr.title
+                    files           = $thisFiles
+                    additions       = [int]$freshPr.additions
+                    deletions       = [int]$freshPr.deletions
+                    ci_status       = if ($freshPr.mergeable_state) { $freshPr.mergeable_state } else { "none" }
+                    commit_messages = @($commits | ForEach-Object { $_.commit.message } | Select-Object -First 20)
+                    repo_path       = $env:FOUNDRY_REPO_ROOT
+                    diff_text       = $diff
+                    pr_number       = [int]$pr.number
+                    open_pr_files   = $openPrFiles
+                } | ConvertTo-Json -Depth 5 -Compress
+
+                $tempFile = [System.IO.Path]::GetTempFileName()
+                Set-Content -Path $tempFile -Value $preprocessorInput -Encoding UTF8
+
+                $preprocessorScript = Join-Path (Split-Path $PSScriptRoot) "scoring" "preprocessor.py"
+                $prepOutput = & python $preprocessorScript $tempFile 2>&1 | Out-String
+                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+
+                $preprocessorResult = $prepOutput | ConvertFrom-Json
+                Write-Host "Preprocessor: score=$($preprocessorResult.normalized_score)/10, confidence=$($preprocessorResult.confidence), engine=$($preprocessorResult.ml_engine)"
+            } catch {
+                Write-Host "WARN: Preprocessor failed: $($_.Exception.Message) — proceeding with LLM-only scoring"
+            }
+
+            # If preprocessor ran and a gate failed, skip LLM entirely
+            if ($preprocessorResult -and -not $preprocessorResult.gate_passed) {
+                $score = 1
+                $verdict = "REQUEST_CHANGES"
+                $review = "Gate check failed: $($preprocessorResult.gate_failure_reason)"
+                $tierAction = "auto-close"
+                $ghReviewEvent = "REQUEST_CHANGES"
+                $parsedJson = @{
+                    verdict      = "REQUEST_CHANGES"
+                    score        = 1
+                    summary      = "Automatically rejected by preprocessor gate: $($preprocessorResult.gate_failure_reason)"
+                    concerns     = @($preprocessorResult.gate_failure_reason)
+                    overlap_risk = "none"
+                }
+                $skipLlm = $true
+                Write-Host "GATE FAILED: $repoShort#$($pr.number) — $($preprocessorResult.gate_failure_reason). Skipping LLM."
+            }
+
+            if (-not $skipLlm) {
+
             $ragContext = ""
             try {
                 $ragOutput = & python "$PSScriptRoot\..\rag\query.py" $pr.title 2>$null
@@ -292,6 +350,12 @@ foreach ($repo in $repos) {
                 }
             } catch {}
 
+            # Build preprocessor context for LLM prompt
+            $preprocessorPromptSection = ""
+            if ($preprocessorResult -and $preprocessorResult.gate_passed) {
+                $preprocessorPromptSection = "`nPREPROCESSOR ANALYSIS (deterministic scoring — use this to calibrate your score):`nPre-score: $($preprocessorResult.normalized_score)/10 (confidence: $($preprocessorResult.confidence))`nSignal breakdown:`n$($preprocessorResult.signal_summary)`n`nYour score should be within +/-1 of the pre-score unless you have strong reasons to deviate.`nIf the pre-score is 8, your score should be 7, 8, or 9.`n"
+            }
+
             $reviewPrompt = @"
 You are a strict senior code reviewer. You must be critical and honest. Do NOT rubber-stamp.
 
@@ -318,7 +382,7 @@ SCORING RULES -- follow these strictly:
 - 1-2: Reject. Empty, broken, or harmful.
 
 DUPLICATE CHECK: If this PR does the same thing as a recently merged PR listed above, score it 1-2 and verdict REQUEST_CHANGES.
-
+$preprocessorPromptSection
 You MUST respond with ONLY this JSON structure — no markdown, no extra text:
 {
   "verdict": "APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION",
@@ -379,8 +443,26 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
             # Safety net: if LLM explicitly approved but score parsed as 0, parsing failed -- default to 6
             if ($verdict -eq "APPROVE" -and $score -eq 0) { $score = 6 }
 
+            } # end if (-not $skipLlm)
+
+            # Reconcile LLM score with preprocessor pre-score
+            if ($preprocessorResult -and $preprocessorResult.gate_passed) {
+                $preScore = [int]$preprocessorResult.normalized_score
+                $llmRaw = $score
+
+                # Clamp LLM score to pre-score ± 1
+                $score = [Math]::Max($preScore - 1, [Math]::Min($preScore + 1, $score))
+                # Clamp to valid range
+                $score = [Math]::Max(3, [Math]::Min(10, $score))
+
+                if ($score -ne $llmRaw) {
+                    Write-Host "Score adjusted: LLM=$llmRaw, pre-score=$preScore → final=$score"
+                }
+            }
+
             # ========== SCORING TIERS ==========
             # Verdict from LLM always wins -- tiers only decide merge behavior
+            if (-not $skipLlm) {
             $ghReviewEvent = "COMMENT"
             $tierAction = ""
 
@@ -402,6 +484,7 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
                 # Score 1-3 = auto-close
                 $tierAction = "auto-close"
             }
+            } # end if (-not $skipLlm) for tier logic
 
             # Add overlap warnings to review body
             $overlapNote = ""
@@ -442,6 +525,13 @@ You MUST respond with ONLY this JSON structure — no markdown, no extra text:
                 branch            = $pr.head.ref
                 created_at        = $pr.created_at
                 score             = $score
+                llm_raw_score     = if ($preprocessorResult) { $llmRaw } else { $score }
+                pre_score         = if ($preprocessorResult) { [int]$preprocessorResult.normalized_score } else { $null }
+                pre_score_confidence = if ($preprocessorResult) { $preprocessorResult.confidence } else { $null }
+                gate_passed       = if ($preprocessorResult) { $preprocessorResult.gate_passed } else { $null }
+                gate_failure_reason = if ($preprocessorResult) { $preprocessorResult.gate_failure_reason } else { $null }
+                signal_summary    = if ($preprocessorResult) { $preprocessorResult.signal_summary } else { $null }
+                ml_engine         = if ($preprocessorResult) { $preprocessorResult.ml_engine } else { "none" }
                 verdict           = $verdict
                 files             = $thisFiles
                 file_count        = $fileCount
