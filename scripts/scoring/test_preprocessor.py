@@ -417,6 +417,7 @@ class TestClassifyArea(unittest.TestCase):
 class TestExtractFeatures(unittest.TestCase):
 
     def test_returns_8_features(self):
+        # 8 features: total_size, num_files, has_tests, has_docs, test_ratio, dir_spread, additions, deletions
         features = _mod._extract_features({"additions": 10, "deletions": 5}, ["src/a.py"])
         self.assertEqual(len(features), 8)
 
@@ -519,9 +520,9 @@ class TestPreprocessIntegration(unittest.TestCase):
     """End-to-end tests of the preprocess() function."""
 
     def _preprocess(self, **overrides):
-        with patch.object(_mod, "load_memory", return_value=[]):
-            with patch.object(_mod, "load_full_memory", return_value=[]):
-                return _mod.preprocess(_pr(**overrides))
+        with patch.object(_mod, "load_memory", return_value=[]), \
+             patch.object(_mod, "load_full_memory", return_value=[]):
+            return _mod.preprocess(_pr(**overrides))
 
     def test_returns_dict(self):
         result = self._preprocess()
@@ -630,14 +631,14 @@ class TestPreprocessIntegration(unittest.TestCase):
 
     def test_missing_optional_keys(self):
         """preprocess handles missing optional keys gracefully."""
-        with patch.object(_mod, "load_memory", return_value=[]):
-            with patch.object(_mod, "load_full_memory", return_value=[]):
-                result = _mod.preprocess({
-                    "title": "test",
-                    "files": [],
-                    "additions": 0,
-                    "deletions": 0,
-                })
+        with patch.object(_mod, "load_memory", return_value=[]), \
+             patch.object(_mod, "load_full_memory", return_value=[]):
+            result = _mod.preprocess({
+                "title": "test",
+                "files": [],
+                "additions": 0,
+                "deletions": 0,
+            })
         self.assertIsInstance(result, dict)
         self.assertTrue(result["gate_passed"])
 

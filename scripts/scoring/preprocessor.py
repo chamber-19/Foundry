@@ -92,8 +92,10 @@ def gate_builds(ci_status):
     status = (ci_status or "none").lower().strip()
 
     # Hard failures — block scoring entirely
-    if status in ("failure", "unstable"):
+    if status == "failure":
         return False, f"CI checks failed ({status})"
+    if status == "unstable":
+        return False, f"CI checks are unstable — some checks failed ({status})"
     if status == "dirty":
         return False, f"Merge conflicts detected ({status})"
     if status == "blocked":
@@ -103,7 +105,7 @@ def gate_builds(ci_status):
     if status in ("clean", "success"):
         return True, f"CI status: {status}"
 
-    # Ambiguous / unknown states — allow but note it
+    # Ambiguous / unknown / pending states — allow but note it
     return True, f"CI status: {status}"
 
 
