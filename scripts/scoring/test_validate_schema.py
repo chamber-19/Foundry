@@ -521,7 +521,7 @@ class TestLogging(unittest.TestCase):
         try:
             _module._SCHEMA_CACHE = None
             bad_file = MagicMock()
-            bad_file.__enter__ = lambda s: io.StringIO("not-json{{{")
+            bad_file.__enter__ = lambda _: io.StringIO("not-json{{{")
             bad_file.__exit__ = MagicMock(return_value=False)
             with patch("builtins.open", return_value=bad_file):
                 with self.assertLogs("validate_schema", level="ERROR") as cm:
