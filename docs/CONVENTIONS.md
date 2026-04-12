@@ -12,7 +12,7 @@
 
 3. **Fallback before failure.** Every external call (Ollama, web, subprocess) must have a fallback path. If the call fails after retry, produce a degraded but usable result — not an exception.
 
-4. **Local-first, no cloud dependencies.** Office runs entirely on the local workstation. Do not add cloud APIs, SaaS dependencies, or remote database connections. All data stays local.
+4. **Local-first, no cloud dependencies.** Foundry runs entirely on the local workstation (or across machines via Tailscale). Do not add cloud APIs, SaaS dependencies, or remote database connections. All data stays local.
 
 5. **Single NuGet per problem.** Do not add multiple libraries for the same concern. Consult `LIBRARY-DECISIONS.md` before adding any dependency.
 
@@ -32,7 +32,7 @@
 - All I/O methods must be `async Task<T>` or `async Task`.
 - Always accept `CancellationToken cancellationToken = default` as the last parameter.
 - Always pass `cancellationToken` to downstream async calls.
-- Use `ConfigureAwait(false)` in library code (`Foundry.Core`). Omit in WPF code (`Foundry`).
+- Use `ConfigureAwait(false)` in library code (`Foundry.Core`). Omit in broker/worker code (`Foundry.Broker`).
 
 ### Error Handling
 ```csharp
@@ -102,37 +102,40 @@ catch (Exception ex)
 ## Project Structure
 
 ```
-Office/
-├── Foundry/              # WPF application (Windows-only)
-│   ├── Models/             # Shared models (compiled into Core via link)
-│   ├── Services/           # Shared services (compiled into Core via link)
-│   ├── Scripts/            # Python ML scripts
-│   ├── ViewModels/         # WPF-specific MVVM
-│   └── Views/              # XAML views
-├── Foundry.Broker/       # ASP.NET Core web service (localhost-only)
-│   ├── Endpoints/          # IEndpointRouteBuilder extension classes + validators (one file per domain group)
-│   └── Program.cs          # Infrastructure setup only (DI, middleware, hosted services)
-├── Foundry.Core/         # Shared library (net10.0, no Windows dependency)
-│   └── Services/           # Core-only services (Orchestrator, SessionStore, etc.)
-├── Foundry.Core.Tests/   # xUnit tests
-├── Docs/                   # Architecture docs, library decisions, conventions
-├── Knowledge/              # Repo-owned seed knowledge
-└── schemas/                # Training feature schema (feature-v1.json)
+Foundry/
+├── src/
+│   ├── Foundry.Core/         # Shared class library (net10.0, no Windows dependency)
+│   │   ├── Models/             # Shared data models (Foundry.Models namespace)
+│   │   └── Services/           # All services: coordinators, stores, ML engines, external clients
+│   └── Foundry.Broker/       # ASP.NET Core minimal API (localhost broker)
+│       ├── Endpoints/          # IEndpointRouteBuilder extension classes + validators (one file per domain group)
+│       └── Program.cs          # Infrastructure setup only (DI, middleware, hosted services)
+├── tests/
+│   └── Foundry.Core.Tests/   # xUnit tests
+├── scripts/                  # Python ML scripts, PowerShell automation, RAG pipeline, scoring engine
+│   ├── ml/                   # ML suite artifacts, batch scripts
+│   ├── rag/                  # RAG pipeline scripts
+│   ├── scoring/              # Scoring engine and preprocessor
+│   ├── automation/           # Auto-review and CI scripts
+│   └── commands/             # Discord command helpers
+├── bot/                      # Discord bot (Python, discord.py) — sole operator interface
+├── docs/                     # Architecture docs, library decisions, conventions
+├── schemas/                  # Frozen feature schemas (do not modify)
+└── evals/                    # Evaluation datasets
 ```
 
 ### Where to Put New Code
 
 | Type of code | Location | Why |
 |-------------|----------|-----|
-| New service used by both WPF and Broker | `Foundry/Services/` | Auto-compiled into Core via link |
-| New model used everywhere | `Foundry/Models/` | Auto-compiled into Core via link |
-| Broker-only endpoint logic | `Foundry.Broker/Endpoints/` | One static class per domain group; call `app.Map*Endpoints(logger)` in `Program.cs` |
-| Broker-only background service | `Foundry.Broker/` (new file) | Register in Program.cs |
-| Core-only service (no WPF dependency) | `Foundry.Core/Services/` | Direct file in Core project |
-| FluentValidation validators | `Foundry.Broker/Endpoints/` | Co-located with request records in the same endpoint file |
-| New NuGet for shared services | `Foundry.Core.csproj` | Core is the shared dependency |
-| New NuGet for Broker-only features | `Foundry.Broker.csproj` | Keep WPF project lean |
-| Tests | `Foundry.Core.Tests/` | All tests go here |
+| New shared service | `src/Foundry.Core/Services/` | All services live here; registered in Broker via DI |
+| New shared model | `src/Foundry.Core/Models/` | Single model location for the whole pipeline |
+| Broker-only endpoint logic | `src/Foundry.Broker/Endpoints/` | One static class per domain group; call `app.Map*Endpoints(logger)` in `Program.cs` |
+| Broker-only background service | `src/Foundry.Broker/` (new file) | Register in Program.cs |
+| FluentValidation validators | `src/Foundry.Broker/Endpoints/` | Co-located with request records in the same endpoint file |
+| New NuGet for shared services | `src/Foundry.Core/Foundry.Core.csproj` | Core is the shared dependency |
+| New NuGet for Broker-only features | `src/Foundry.Broker/Foundry.Broker.csproj` | Keep Core dependency-lean |
+| Tests | `tests/Foundry.Core.Tests/` | All tests go here |
 
 ---
 
@@ -199,7 +202,7 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, FoundryOrche
 
 ## Python Script Conventions
 
-- Scripts live in `Foundry/Scripts/`.
+- Scripts live in `scripts/` subdirectories (`scripts/ml/`, `scripts/rag/`, `scripts/scoring/`, etc.).
 - Called via `ProcessRunner.RunAsync("python", scriptPath + " --input " + inputFile)`.
 - Input: JSON file path passed as `--input` argument.
 - Output: JSON written to stdout.
