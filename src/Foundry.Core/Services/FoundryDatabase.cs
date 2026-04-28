@@ -11,6 +11,24 @@ public sealed class FoundryDatabase : IDisposable
     private readonly LiteDatabase _db;
     private bool _disposed;
 
+    /// <summary>
+    /// Pre-warms BsonMapper.Global for every entity type used by this database.
+    /// LiteDB's internal entity-mapper cache is lazily populated and has a race
+    /// condition when multiple threads request the same type simultaneously for
+    /// the first time.  The CLR guarantees this static constructor runs exactly
+    /// once before any instance is constructed, so all mappers are fully built
+    /// before any concurrent code can call EnsureIndex or GetCollection.
+    /// </summary>
+    static FoundryDatabase()
+    {
+        BsonMapper.Global.Entity<DailyRunTemplate>();
+        BsonMapper.Global.Entity<FoundryJob>();
+        BsonMapper.Global.Entity<JobSchedule>();
+        BsonMapper.Global.Entity<WorkflowTemplate>();
+        BsonMapper.Global.Entity<IndexedDocumentRecord>();
+        BsonMapper.Global.Entity<FoundryNotification>();
+    }
+
     public FoundryDatabase(string stateRootPath)
     {
         var root = string.IsNullOrWhiteSpace(stateRootPath)
