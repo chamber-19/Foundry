@@ -3,14 +3,14 @@
 
 > **Family-wide rules:** See [chamber-19/.github](https://github.com/chamber-19/.github/blob/main/.github/copilot-instructions.md) for Chamber 19 org-wide Copilot guidance. This file contains **repo-specific** rules that layer on top of the org rules.
 >
-> **Repo:** `Koraji95-coder/Foundry` (transfer to `chamber-19/Foundry` planned)
+> **Repo:** `chamber-19/Foundry`
 > **Role:** Internal agent broker for the Chamber 19 tool family — receives GitHub webhooks and Discord commands, routes to local-LLM agents (Ollama), posts structured output back
 
 ---
 
 ## Mission — read this first
 
-Foundry is **transitioning** from a three-engine ML scoring pipeline (sklearn + PyTorch + TensorFlow) into a focused **agent broker**. Treat the ML scaffolding (`scripts/scoring/`, `scripts/ml/`, `MLAnalyticsService`, `MLPipelineCoordinator`, `OnnxMLEngine`, the TensorFlow/PyTorch services) as **scheduled for removal** — do not extend it, do not add new dependencies on it, do not write new tests against it.
+Foundry has been transferred to `chamber-19/Foundry` and cleanup pass 1 has removed the old ML scaffolding. The codebase is now a focused **agent broker**. Do not reintroduce ML training code, scoring pipelines, or Suite-style infrastructure.
 
 **Keep and build on:**
 
@@ -21,14 +21,14 @@ Foundry is **transitioning** from a three-engine ML scoring pipeline (sklearn + 
 - The knowledge / RAG stack (`KnowledgeCoordinator`, `KnowledgeImportService`, `KnowledgeIndexStore`, `KnowledgeSearchService`, `EmbeddingService`, `VectorStoreService`) — this powers RAG over the chamber-19 repos
 - `ProcessRunner`, `FoundryResiliencePipelines`, `IModelProvider` plumbing
 
-**Strip and replace:**
+**Already stripped (cleanup pass 1 — do not restore):**
 
 - `MLAnalyticsService`, `MLPipelineCoordinator`, `MLResultStore`, `OnnxMLEngine` and their models
 - `scripts/scoring/`, `scripts/ml/` (training-side)
 - Suite artifact export endpoints (Suite is no longer a consumer)
-- The training-data / mastery / forecasting models in `Foundry.Core/Models/` (TrainingAttempt*, MLForecastResult, MLAnalyticsResult, TopicMasterySummary, LearningProfile, SuiteMLArtifact, etc.)
+- The training-data / mastery / forecasting models (`TrainingAttempt*`, `MLForecastResult`, `MLAnalyticsResult`, `TopicMasterySummary`, `LearningProfile`, `SuiteMLArtifact`, etc.)
 
-When in doubt about whether something stays: if it's used by the agent layer, the broker, the bot, or the knowledge index, **keep**. If it exists to score PRs, train models, persist ML results, or export to Suite, **strip**.
+When in doubt about whether something stays: if it is used by the agent layer, the broker, the bot, or the knowledge index, **keep**. If it exists to score PRs, train models, persist ML results, or export to Suite, **do not restore**.
 
 ---
 
