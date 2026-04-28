@@ -1,134 +1,157 @@
-<!-- markdownlint-disable MD013 MD033 -->
-# Copilot Instructions
+<!-- markdownlint-disable MD013 -->
+# Copilot Instructions — Foundry
 
-> **Family-wide rules:** See [chamber-19/.github](https://github.com/chamber-19/.github/blob/main/.github/copilot-instructions.md) for Chamber 19 org-wide Copilot guidance. This file contains **repo-specific** rules that layer on top of the org rules.
->
-> **Repo:** `Koraji95-coder/Foundry` (transfer to `chamber-19/Foundry` planned)
-> **Role:** Internal agent broker for the Chamber 19 tool family — receives GitHub webhooks and Discord commands, routes to local-LLM agents (Ollama), posts structured output back
+> **Repo:** `chamber-19/Foundry`
+> **Role:** Local agent broker for Chamber 19 dependency monitoring, GitHub/Discord operations, RAG, and Ollama-backed summaries.
 
----
+Use the org `.github/copilot-instructions.md` as shared reference guidance,
+but this file is the repo-specific source of truth. The org file is not
+auto-loaded; conventions that apply here are restated below where they
+matter.
 
 ## Mission — read this first
 
-Foundry is **transitioning** from a three-engine ML scoring pipeline (sklearn + PyTorch + TensorFlow) into a focused **agent broker**. Treat the ML scaffolding (`scripts/scoring/`, `scripts/ml/`, `MLAnalyticsService`, `MLPipelineCoordinator`, `OnnxMLEngine`, the TensorFlow/PyTorch services) as **scheduled for removal** — do not extend it, do not add new dependencies on it, do not write new tests against it.
+Foundry is the **agent broker** for the Chamber 19 tool family. It receives
+GitHub webhooks and Discord commands, routes work to local-LLM agents
+(Ollama), and posts structured output back. It is **not** an ML training
+pipeline, a PR scoring system, or a Suite artifact exporter — those were
+prior incarnations and have been retired.
 
 **Keep and build on:**
 
 - The Discord bot in `bot/` (operator UI)
 - The ASP.NET Core broker in `src/Foundry.Broker/` (HTTP + job queue)
-- The job persistence layer (`FoundryJobStore`, `FoundryDatabase`, `JobSchedulerStore`, `WorkflowStore`)
+- The job persistence layer (`FoundryJobStore`, `FoundryDatabase`,
+  `JobSchedulerStore`, `WorkflowStore`)
 - The Ollama service (`OllamaService.cs`)
-- The knowledge / RAG stack (`KnowledgeCoordinator`, `KnowledgeImportService`, `KnowledgeIndexStore`, `KnowledgeSearchService`, `EmbeddingService`, `VectorStoreService`) — this powers RAG over the chamber-19 repos
+- The knowledge / RAG stack (`KnowledgeCoordinator`,
+  `KnowledgeImportService`, `KnowledgeIndexStore`, `KnowledgeSearchService`,
+  `EmbeddingService`, `VectorStoreService`)
 - `ProcessRunner`, `FoundryResiliencePipelines`, `IModelProvider` plumbing
 
-**Strip and replace:**
+The knowledge stack is preserved for future cross-repo Q&A and code-aware
+agent context. It is not currently wired into any shipping agent. Don't
+remove it, but don't expand it until an agent actually consumes it.
 
-- `MLAnalyticsService`, `MLPipelineCoordinator`, `MLResultStore`, `OnnxMLEngine` and their models
+**Strip and do not reintroduce:**
+
+- `MLAnalyticsService`, `MLPipelineCoordinator`, `MLResultStore`,
+  `OnnxMLEngine` and their models
 - `scripts/scoring/`, `scripts/ml/` (training-side)
 - Suite artifact export endpoints (Suite is no longer a consumer)
-- The training-data / mastery / forecasting models in `Foundry.Core/Models/` (TrainingAttempt*, MLForecastResult, MLAnalyticsResult, TopicMasterySummary, LearningProfile, SuiteMLArtifact, etc.)
+- The training-data / mastery / forecasting models in
+  `Foundry.Core/Models/` (`TrainingAttempt*`, `MLForecastResult`,
+  `MLAnalyticsResult`, `TopicMasterySummary`, `LearningProfile`,
+  `SuiteMLArtifact`, etc.)
 
-When in doubt about whether something stays: if it's used by the agent layer, the broker, the bot, or the knowledge index, **keep**. If it exists to score PRs, train models, persist ML results, or export to Suite, **strip**.
+When in doubt about whether something stays: if it's used by the agent
+layer, the broker, the bot, or the knowledge index, **keep**. If it
+exists to score PRs, train models, persist ML results, or export to Suite,
+**strip**.
 
----
+Before deleting any stripped type, grep the keep-list for references and
+remove them. The strip is not complete until `dotnet build Foundry.sln`
+passes with the deleted files. Do not leave dangling parameter types,
+DI registrations, or migration entries pointing at removed classes.
 
-## Architecture context
+## Current Shape
 
-### Stack
+- Broker: ASP.NET Core minimal API in `src/Foundry.Broker/`.
+- Core services/models: `src/Foundry.Core/`.
+- Operator UI: Discord bot in `bot/`.
+- Local model runtime: Ollama at `http://127.0.0.1:11434` by default.
 
-- **.NET 10 SDK** — `Foundry.Core` (class library) + `Foundry.Broker` (ASP.NET Core minimal API host)
-- **Python 3.10+** — Discord bot in `bot/` only. Python is not used for ML anymore.
-- **Ollama** — local LLM runtime (`http://127.0.0.1:11434` by default). Pin model tags explicitly in `foundry.settings.json`.
-- **Qdrant or Chroma** — optional vector store for the knowledge index
-- **LiteDB** — embedded persistence for jobs, schedules, knowledge index metadata
+## Build And Test
 
-### Process model
+```text
+dotnet restore Foundry.sln
+dotnet build Foundry.sln
+dotnet test Foundry.sln
 
-- The broker runs as a single ASP.NET Core process on `localhost:57420`
-- Background workers (`FoundryJobWorker`, `JobSchedulerWorker`, `JobRetentionWorker`) drain the queue
-- The Discord bot is a separate Python process that talks HTTP to the broker
-- Agents are invoked by the broker, not by the bot directly — the bot is a thin UI
+cd bot
+pip install -r requirements.txt
+python -m py_compile foundry_bot.py
+```
 
-### Where Foundry sits in the family
+Once an eval harness exists, agent eval runs go under `evals/<agent-name>/`
+and are invoked via `dotnet test Foundry.sln --filter Category=Eval`. Until
+that wiring exists, leave the slot empty rather than faking it.
 
-| Caller | How it talks to Foundry |
-| --- | --- |
-| Operator (a human) | Discord slash commands → bot → broker HTTP API |
-| `chamber-19/transmittal-builder` etc. | GitHub webhooks → broker `/webhooks/github` → agent layer |
-| Future scheduled tasks | `JobSchedulerWorker` cron-like jobs |
+## Non-Goals
 
-Foundry is **not** consumed by other chamber-19 repos as a library. It is a **service** that observes them and acts on their behalf.
+- Do not restore ML training, PR scoring, Suite artifact export, TensorFlow,
+  TorchSharp, ML.NET, ONNX Runtime, scikit-learn, or `scripts/ml` /
+  `scripts/scoring` flows.
+- If a feature sounds like scoring, implement it as deterministic checks plus
+  optional LLM structured extraction plus rule-based output.
 
----
-
-## Repo-specific rules — Foundry
-
-## 1. Don't reintroduce the ML pipeline
-
-The org-wide rules already say to push back on Suite-style infrastructure. For Foundry specifically that means:
-
-- No new ML training code, model retraining loops, or feature engineering pipelines
-- No new dependencies on TensorFlow.NET, TorchSharp, ML.NET, ONNX Runtime, or scikit-learn
-- No restoration of `scripts/scoring/` or `scripts/ml/` even if asked — the user has decided these go
-- The `EngineHandoff` contract is being renamed to `AgentHandoff`. If you see `EngineHandoff` referenced in new code, it's stale
-
-If the user asks for a feature that sounds like the old ML pipeline, ask whether they want it as an **agent** (LLM call wrapped in deterministic pre/post-processing) instead. The answer is almost always yes.
-
-## 2. Agent design contract
+## Agent design contract
 
 Agents are server-side workers that:
 
-1. Receive a structured request (webhook payload, Discord command, scheduled trigger)
-2. Run **deterministic pre-checks** first (semver parsing, ecosystem detection, special-case lookups) — no LLM
-3. Use the LLM for **structured extraction**, never for open-ended judgment. Output must match a JSON schema validated by the caller.
-4. Apply a **rule engine** to the structured output to produce a verdict
-5. Post the verdict back via the GitHub API or Discord
+1. **Receive a structured request** (webhook payload, Discord command,
+   scheduled trigger).
+2. **Run deterministic pre-checks first** (semver parsing, ecosystem
+   detection, special-case lookups) — no LLM.
+3. **Use the LLM for structured extraction, never for open-ended judgment.**
+   Output must match a JSON schema validated by the caller.
+4. **Apply a rule engine to the structured output** to produce a verdict.
+5. **Post the verdict back** via the GitHub API or Discord.
 
-This layered design is what makes a 7B–14B local model usable. If a proposed agent design relies on the LLM "deciding" something with no schema and no pre/post layers, push back — that pattern fails on local models.
+This layered design is what makes a 7B–14B local model usable. If a
+proposed agent design relies on the LLM "deciding" something with no
+schema and no pre/post layers, **do not implement it.** Surface the
+concern in the PR description and request a redesign that fits the
+layered contract above. That pattern produces the same flaky results the
+old ML pipeline did.
 
-## 3. Local-LLM constraints
+## Local-LLM constraints
 
-- Pin Ollama model tags explicitly (e.g. `qwen2.5-coder:14b-instruct-q5_K_M`, not `qwen2.5-coder:14b`). Models update under you otherwise.
-- Use Ollama's `format: "json"` mode plus a Pydantic / System.Text.Json validator with a one-shot retry on schema failure. Do NOT introduce grammar-constrained decoding (outlines, llama.cpp grammars) without a measured failure rate that justifies it.
-- Every agent must have an eval set under `evals/` with at least 20 hand-labeled examples before it ships. Shadow-mode (post comments, do not auto-merge) for at least two weeks before enabling write actions.
-- If Ollama is unreachable, agents must **fail open to "needs human review"** — never silently auto-approve.
+- **Pin Ollama model tags explicitly.** Use
+  `qwen2.5-coder:14b-instruct-q5_K_M`, not `qwen2.5-coder:14b`. Models
+  update under you otherwise. Pinned tags live in `foundry.settings.json`
+  under `ollama.models.*` and are referenced by agents through
+  `IModelProvider`. Never hardcode model tags in agent code.
+- **Use Ollama's `format: "json"` mode plus a `System.Text.Json` /
+  Pydantic validator with a one-shot retry on schema failure.** Do NOT
+  introduce grammar-constrained decoding (outlines, llama.cpp grammar
+  mode) — it adds complexity for marginal gain at this scale.
+- **Eval set first, agent second, write actions last.** Every agent must
+  have an eval set under `evals/<agent-name>/` with at least 20
+  hand-labeled examples *before write actions are enabled*. Order is:
+  build the labeled dataset → write the agent against it → run shadow
+  mode (post comments/notifications, do not auto-merge or auto-approve)
+  for at least two weeks → enable write actions only after agent
+  agreement with labels is at or above the threshold defined per agent.
+- Shadow mode is the default state for any new agent. Promotion out of
+  shadow mode is a deliberate PR with eval results attached.
 
-## 4. Documentation currency
+## Review-Critical Rules
 
-Every PR you produce **must** keep these docs in lockstep with the code:
+- **Fail-open contract.** Agents must fail open to `needs human review` if
+  Ollama, GitHub, or any other required service is unavailable. Never
+  silently auto-approve, auto-merge, or skip notification on degraded
+  state.
+- **Polling, not webhooks.** Dependency monitoring uses scheduled polling
+  against the GitHub API. If a future agent needs webhook ingress, HMAC
+  signature validation is mandatory and the public ingress path must be
+  documented and reviewed before merge.
+- **Secrets handling.** Tokens and credentials belong in
+  `foundry.settings.local.json`, environment variables, or a secret
+  manager. Never commit them. The local-settings file is gitignored —
+  keep it that way.
+- **Docs follow code.** Endpoint, settings, or agent-contract changes
+  require corresponding README and config-doc updates in the same PR.
 
-| When you change … | You must also update … |
-| --- | --- |
-| `foundry.settings.json` shape or any field in `FoundrySettings.cs` | `README.md` § Configuration and `docs/` if a corresponding architecture doc exists |
-| Any HTTP endpoint in `src/Foundry.Broker/Endpoints/` | `README.md` § Key Endpoints route table |
-| `bot/foundry_bot.py` slash command surface | `bot/` README (create if absent) and `README.md` § Discord Bot |
-| Agent contract (system prompt, JSON schema, model selection) | A note in `evals/README.md` and the agent's eval golden set |
-| `bot/requirements.txt` | `README.md` § Prerequisites if Python version changes |
-| Any user-facing behaviour | `CHANGELOG.md` `## [Unreleased]` (create the file if it doesn't exist) |
+Path-specific rules live under `.github/instructions/*.instructions.md`
+with `applyTo:` frontmatter. Subsystem detail (per-agent prompts, RAG
+indexing internals, eval harness conventions) goes there, not in this
+file.
 
-If a PR changes code but leaves a doc inconsistent, the PR is incomplete.
+## Reference
 
-## 5. Markdown formatting
-
-All `*.md` files must pass `markdownlint-cli2 "**/*.md"` against the rules in `.markdownlint.jsonc` (create one matching the other chamber-19 repos if absent). In short:
-
-- Fenced code blocks: always declare a language. Use `text` for prose, ASCII art, or shell session output — never a bare block
-- Use `_emphasis_` and `**strong**` consistently
-- Surround headings, lists, and fenced blocks with blank lines
-- First line of every file is a `#` H1; archival callouts go below it
-
-## 6. Secrets and tokens
-
-- `discordBotToken`, `githubAppPrivateKey`, and any Ollama auth credentials live in `foundry.settings.local.json` (gitignored), environment variables, or a secret manager — never in `foundry.settings.json`
-- The example config (`bot_config.example.json`) carries placeholder values, never real ones
-- When implementing a webhook receiver, validate the GitHub `X-Hub-Signature-256` header before processing — never trust the payload
-
-## 7. Reference docs
-
-- [`README.md`](../README.md) — top-level architecture, endpoint table, settings reference
-- [`evals/README.md`](../evals/README.md) — eval dataset conventions (build evals before agents)
-- [`bot/foundry_bot.py`](../bot/foundry_bot.py) — Discord bot entry point
-- [`src/Foundry.Broker/Program.cs`](../src/Foundry.Broker/Program.cs) — broker startup and DI wiring
-- `chamber-19/.github` org rules — family-wide conventions, MCP server usage, design system
-
-If you find a discrepancy between code and these docs, fixing the doc is part of your job, not someone else's.
+Behavior conventions (push back, simplicity first, surgical changes,
+goal-driven execution) follow the org `.github/copilot-instructions.md`
+and the Karpathy-inspired guidelines at
+<https://github.com/forrestchang/andrej-karpathy-skills>. When this file
+and the org file disagree, this file wins for Foundry-specific work.

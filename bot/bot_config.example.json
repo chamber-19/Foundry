@@ -6,5 +6,6 @@
     "results": "CHANNEL_ID_FOR_RESULTS",
     "commands": "CHANNEL_ID_FOR_COMMANDS"
   },
-  "broker_url": "http://127.0.0.1:57420"
+  "broker_url": "http://127.0.0.1:57420",
+  "notification_poll_seconds": 30
 }

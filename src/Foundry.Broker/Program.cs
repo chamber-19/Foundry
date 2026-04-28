@@ -50,6 +50,7 @@ builder.Services.AddSingleton<FoundryOrchestrator>();
 builder.Services.AddHostedService<FoundryJobWorker>();
 builder.Services.AddHostedService<JobRetentionWorker>();
 builder.Services.AddHostedService<JobSchedulerWorker>();
+builder.Services.AddHostedService<DependencyMonitorWorker>();
 
 var app = builder.Build();
 var logger = app.Logger;
@@ -60,6 +61,7 @@ app.MapHealthEndpoints(logger);
 app.MapMLEndpoints(logger);
 app.MapKnowledgeEndpoints(logger);
 app.MapScheduleEndpoints(logger);
+app.MapDependencyEndpoints(logger);
 
 app.Run();
 
