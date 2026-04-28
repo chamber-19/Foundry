@@ -106,8 +106,8 @@ public sealed partial class FoundryOrchestrator
     }
 
     /// <summary>
-    /// Returns the full broker state snapshot including provider info and ML
-    /// pipeline status.
+    /// Returns the full broker state snapshot including provider info, agent
+    /// broker status, and dependency monitor settings.
     /// </summary>
     public async Task<FoundryBrokerState> GetStateAsync(CancellationToken cancellationToken = default)
     {
@@ -142,7 +142,19 @@ public sealed partial class FoundryOrchestrator
                 InstalledModelCount = _installedModelCache.Count,
                 InstalledModels = _installedModelCache,
             },
-            ML = new FoundryMLSection(),
+            AgentBroker = new FoundryAgentBrokerSection
+            {
+                Enabled = true,
+                Agents = _dispatcher.Agents.Select(agent => agent.Name).ToList(),
+            },
+            DependencyMonitor = new FoundryDependencyMonitorSection
+            {
+                Enabled = true,
+                RepositoryCount = _dependencyMonitorService.ConfiguredRepositories.Count,
+                Repositories = _dependencyMonitorService.ConfiguredRepositories,
+                PollingIntervalMinutes = (int)_dependencyMonitorService.PollingInterval.TotalMinutes,
+                PendingNotificationCount = _notificationStore.List(pendingOnly: true, limit: 100).Count,
+            },
         };
     }
 

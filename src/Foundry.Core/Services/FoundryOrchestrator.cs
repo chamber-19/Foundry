@@ -29,6 +29,7 @@ public sealed partial class FoundryOrchestrator
     private readonly KnowledgeCoordinator _knowledgeCoordinator;
     private readonly FoundryDatabase _foundryDatabase;
     private readonly FoundryJobStore _jobStore;
+    private readonly NotificationStore _notificationStore;
     private readonly ProcessRunner _processRunner;
     private readonly EmbeddingService _embeddingService;
     private readonly VectorStoreService _vectorStoreService;
@@ -36,6 +37,7 @@ public sealed partial class FoundryOrchestrator
     private readonly JobSchedulerStore _schedulerStore;
     private readonly WorkflowStore _workflowStore;
     private readonly AgentDispatcher _dispatcher;
+    private readonly DependencyMonitorService _dependencyMonitorService;
 
     // Shared synchronization primitives used across partial files.
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -81,6 +83,7 @@ public sealed partial class FoundryOrchestrator
         // LiteDB persistence
         _foundryDatabase = new FoundryDatabase(_stateRootPath);
         _jobStore = new FoundryJobStore(_foundryDatabase);
+        _notificationStore = new NotificationStore(_foundryDatabase);
 
         _processRunner = new ProcessRunner(lf.CreateLogger<ProcessRunner>());
         _modelProvider = new OllamaService(_settings.OllamaEndpoint, _processRunner, ollamaPipeline, lf.CreateLogger<OllamaService>());
@@ -93,7 +96,7 @@ public sealed partial class FoundryOrchestrator
         var ollamaUri = new Uri(_settings.OllamaEndpoint.EndsWith("/") ? _settings.OllamaEndpoint : $"{_settings.OllamaEndpoint}/");
         var embeddingHttpClient = new System.Net.Http.HttpClient { BaseAddress = ollamaUri, Timeout = TimeSpan.FromSeconds(90) };
         var ollamaEmbedClient = new OllamaSharp.OllamaApiClient(embeddingHttpClient);
-        _embeddingService = new EmbeddingService(ollamaEmbedClient, resiliencePipeline: ollamaPipeline, logger: lf.CreateLogger<EmbeddingService>());
+        _embeddingService = new EmbeddingService(ollamaEmbedClient, _settings.OllamaEmbeddingModel, ollamaPipeline, lf.CreateLogger<EmbeddingService>());
         _vectorStoreService = new VectorStoreService(logger: lf.CreateLogger<VectorStoreService>());
         _knowledgeIndexStore = new KnowledgeIndexStore(_foundryDatabase, lf.CreateLogger<KnowledgeIndexStore>());
         _knowledgeCoordinator = new KnowledgeCoordinator(_embeddingService, _vectorStoreService, _knowledgeIndexStore);
@@ -103,7 +106,23 @@ public sealed partial class FoundryOrchestrator
         _workflowStore = new WorkflowStore(_foundryDatabase);
 
         // Agent dispatch
-        _dispatcher = new AgentDispatcher(agents ?? [], lf.CreateLogger<AgentDispatcher>());
+        var registeredAgents = (agents ?? [])
+            .Concat([
+                new DepReviewerAgent(
+                    _modelProvider,
+                    _settings.OllamaChatModel,
+                    lf.CreateLogger<DepReviewerAgent>())
+            ])
+            .ToList();
+        _dispatcher = new AgentDispatcher(registeredAgents, lf.CreateLogger<AgentDispatcher>());
+
+        var gitHubClient = new GitHubDependencyClient(_settings, logger: lf.CreateLogger<GitHubDependencyClient>());
+        _dependencyMonitorService = new DependencyMonitorService(
+            _settings,
+            gitHubClient,
+            _notificationStore,
+            _dispatcher,
+            lf.CreateLogger<DependencyMonitorService>());
     }
 
     // --- Public accessors for DI consumers ---
@@ -113,6 +132,12 @@ public sealed partial class FoundryOrchestrator
 
     /// <summary>Number of days to retain completed jobs.</summary>
     public int JobRetentionDays => _settings.JobRetentionDays;
+
+    /// <summary>Dependency poll interval for the hosted monitor worker.</summary>
+    public TimeSpan DependencyPollingInterval => _dependencyMonitorService.PollingInterval;
+
+    /// <summary>Notification persistence store.</summary>
+    public NotificationStore Notifications => _notificationStore;
 
     /// <summary>Embedding generation service.</summary>
     public EmbeddingService EmbeddingService => _embeddingService;

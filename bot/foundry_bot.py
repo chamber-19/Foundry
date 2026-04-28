@@ -1,8 +1,8 @@
 """
-Foundry Discord Bot — sole operator interface for the Foundry ML pipeline.
+Foundry Discord Bot.
 
-Connects to the Foundry broker API and posts results/alerts to Discord channels.
-Slash commands are registered to a single guild on startup.
+Connects to the local Foundry broker API, exposes operator slash commands, and
+posts dependency notifications to the configured alerts channel.
 """
 
 import asyncio
@@ -11,11 +11,12 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 try:
+    import aiohttp
     import discord
     from discord import app_commands
-    import aiohttp
 except ImportError:
     print("Missing dependencies. Install with: pip install -r requirements.txt")
     sys.exit(1)
@@ -25,9 +26,10 @@ logger = logging.getLogger("foundry_bot")
 
 CONFIG_PATH = os.environ.get("FOUNDRY_BOT_CONFIG", "bot_config.json")
 DEFAULT_BROKER_URL = "http://127.0.0.1:57420"
+MAX_DISCORD_OUTPUT_LENGTH = 1900
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     """Load bot configuration from JSON file."""
     if not os.path.exists(CONFIG_PATH):
         logger.warning("Config file %s not found. Using defaults.", CONFIG_PATH)
@@ -37,18 +39,23 @@ def load_config() -> dict:
 
 
 config = load_config()
-BROKER_URL = config.get("broker_url", DEFAULT_BROKER_URL)
+BROKER_URL = config.get("broker_url", DEFAULT_BROKER_URL).rstrip("/")
 TOKEN = config.get("token") or os.environ.get("FOUNDRY_DISCORD_TOKEN")
 GUILD_ID = config.get("guild_id") or os.environ.get("FOUNDRY_BOT_GUILD_ID", "0")
+CHANNEL_IDS = config.get("channel_ids", {})
+NOTIFICATION_POLL_SECONDS = int(
+    config.get("notification_poll_seconds")
+    or os.environ.get("FOUNDRY_NOTIFICATION_POLL_SECONDS", "30")
+)
 
 intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 guild = discord.Object(id=int(GUILD_ID))
 http_session: aiohttp.ClientSession | None = None
+notification_task: asyncio.Task[None] | None = None
 
 REPO_ROOT = os.environ.get("FOUNDRY_REPO_ROOT", str(Path(__file__).parent.parent))
-MAX_DISCORD_OUTPUT_LENGTH = 1900
 
 if GUILD_ID == "0":
     logger.warning("No guild_id configured. Set guild_id in bot_config.json or FOUNDRY_BOT_GUILD_ID env var.")
@@ -56,85 +63,222 @@ if GUILD_ID == "0":
 
 @bot.event
 async def on_ready():
-    global http_session
+    global http_session, notification_task
     if http_session is None or http_session.closed:
-        http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+        http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     await tree.sync(guild=guild)
-    logger.info("Foundry bot connected as %s — slash commands synced", bot.user)
+    if notification_task is None or notification_task.done():
+        notification_task = asyncio.create_task(deliver_pending_notifications())
+    logger.info("Foundry bot connected as %s; slash commands synced", bot.user)
+
+
+async def broker_get(path: str) -> dict[str, Any]:
+    session = require_session()
+    async with session.get(f"{BROKER_URL}{path}") as resp:
+        return await parse_broker_response(resp)
+
+
+async def broker_post(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    session = require_session()
+    async with session.post(f"{BROKER_URL}{path}", json=payload) as resp:
+        return await parse_broker_response(resp)
+
+
+async def parse_broker_response(resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    try:
+        data = await resp.json()
+    except Exception:
+        text = await resp.text()
+        data = {"detail": text}
+
+    if resp.status >= 400:
+        detail = data.get("detail") or data.get("error") or str(data)
+        raise RuntimeError(f"broker returned {resp.status}: {detail}")
+    return data
+
+
+def require_session() -> aiohttp.ClientSession:
+    if http_session is None or http_session.closed:
+        raise RuntimeError("HTTP session is not ready yet.")
+    return http_session
+
+
+def get_alert_channel_id() -> int | None:
+    raw = (
+        CHANNEL_IDS.get("alerts")
+        or config.get("alerts_channel_id")
+        or os.environ.get("FOUNDRY_ALERTS_CHANNEL_ID")
+    )
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+async def get_alert_channel() -> discord.abc.Messageable | None:
+    channel_id = get_alert_channel_id()
+    if channel_id is None:
+        return None
+
+    channel = bot.get_channel(channel_id)
+    if channel is not None:
+        return channel
+
+    try:
+        fetched = await bot.fetch_channel(channel_id)
+        if isinstance(fetched, discord.abc.Messageable):
+            return fetched
+    except Exception as exc:
+        logger.warning("Could not fetch alerts channel %s: %s", channel_id, exc)
+    return None
+
+
+async def deliver_pending_notifications():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        try:
+            channel = await get_alert_channel()
+            if channel is None:
+                await asyncio.sleep(NOTIFICATION_POLL_SECONDS)
+                continue
+
+            data = await broker_get("/api/notifications?pending=true&limit=10")
+            notifications = data.get("notifications", [])
+            for notification in notifications:
+                embed = build_notification_embed(notification)
+                await channel.send(embed=embed)
+                await broker_post(
+                    f"/api/notifications/{notification['id']}/delivered",
+                    {"deliveredTo": str(get_alert_channel_id())},
+                )
+        except Exception as exc:
+            logger.warning("Notification delivery loop failed: %s", exc)
+
+        await asyncio.sleep(NOTIFICATION_POLL_SECONDS)
+
+
+def build_notification_embed(notification: dict[str, Any]) -> discord.Embed:
+    category = notification.get("category", "info")
+    color = {
+        "blocked": 0xC0392B,
+        "risky": 0xE67E22,
+        "needs-review": 0xF1C40F,
+        "info": 0x3498DB,
+    }.get(category, 0x3498DB)
+
+    embed = discord.Embed(
+        title=notification.get("title", "Foundry notification")[:256],
+        description=(notification.get("body") or "")[:4096],
+        color=color,
+    )
+    embed.add_field(name="Category", value=category, inline=True)
+    embed.add_field(name="Severity", value=notification.get("severity", "unknown"), inline=True)
+    embed.add_field(name="Repository", value=notification.get("repository", "unknown"), inline=False)
+    source_url = notification.get("sourceUrl")
+    if source_url:
+        embed.add_field(name="Source", value=source_url, inline=False)
+    return embed
 
 
 @tree.command(name="health", description="Check Foundry broker health", guild=guild)
 async def health(interaction: discord.Interaction):
     try:
-        async with http_session.get(f"{BROKER_URL}/health") as resp:
-            data = await resp.json()
-        await interaction.response.send_message(f"**Foundry Health**: {data.get('status', 'unknown')}")
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Health check failed: {e}")
+        data = await broker_get("/health")
+        await interaction.response.send_message(f"Foundry health: **{data.get('status', 'unknown')}**")
+    except Exception as exc:
+        await interaction.response.send_message(f"Health check failed: {exc}")
 
 
-@tree.command(name="status", description="Get Foundry pipeline status", guild=guild)
+@tree.command(name="status", description="Get Foundry broker status", guild=guild)
 async def status(interaction: discord.Interaction):
     try:
-        async with http_session.get(f"{BROKER_URL}/api/state") as resp:
-            data = await resp.json()
-        ml = data.get("ml", {})
+        data = await broker_get("/api/state")
+        broker = data.get("broker", {})
+        provider = data.get("provider", {})
+        dependencies = data.get("dependencyMonitor", {})
         await interaction.response.send_message(
-            f"**ML Pipeline**: {'Enabled' if ml.get('enabled') else 'Disabled'}\n"
-            f"**Summary**: {ml.get('summary', 'N/A')}"
+            "**Foundry Status**\n"
+            f"Broker: `{broker.get('baseUrl', BROKER_URL)}`\n"
+            f"Provider ready: `{provider.get('ready', False)}`\n"
+            f"Dependency repos: `{dependencies.get('repositoryCount', 0)}`\n"
+            f"Pending alerts: `{dependencies.get('pendingNotificationCount', 0)}`"
         )
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Status check failed: {e}")
+    except Exception as exc:
+        await interaction.response.send_message(f"Status check failed: {exc}")
 
 
-PIPELINE_CHOICES = [
-    app_commands.Choice(name="pipeline", value="pipeline"),
-    app_commands.Choice(name="embeddings", value="embeddings"),
-    app_commands.Choice(name="export", value="export"),
-    app_commands.Choice(name="index", value="index"),
-]
-
-
-@tree.command(name="run", description="Trigger an ML pipeline run", guild=guild)
-@app_commands.describe(pipeline_type="Pipeline type to run")
-@app_commands.choices(pipeline_type=PIPELINE_CHOICES)
-async def run_pipeline(interaction: discord.Interaction, pipeline_type: app_commands.Choice[str] = None):
-    selected = pipeline_type.value if pipeline_type else "pipeline"
-    endpoint_map = {
-        "pipeline": "/api/ml/pipeline",
-        "embeddings": "/api/ml/embeddings",
-        "export": "/api/ml/export-artifacts",
-        "index": "/api/ml/index-knowledge",
-    }
-    endpoint = endpoint_map.get(selected)
-    if not endpoint:
-        await interaction.response.send_message(
-            f"Unknown pipeline type: `{selected}`. Use: {', '.join(endpoint_map.keys())}"
-        )
-        return
-
-    try:
-        async with http_session.post(f"{BROKER_URL}{endpoint}") as resp:
-            data = await resp.json()
-        job_id = data.get("jobId", "N/A")
-        await interaction.response.send_message(f"✅ Job queued: `{job_id}` (type: {selected})")
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to trigger {selected}: {e}")
-
-
-@tree.command(name="jobs", description="List recent jobs", guild=guild)
+@tree.command(name="jobs", description="List recent Foundry jobs", guild=guild)
 async def list_jobs(interaction: discord.Interaction):
     try:
-        async with http_session.get(f"{BROKER_URL}/api/jobs") as resp:
-            data = await resp.json()
+        data = await broker_get("/api/jobs")
         jobs = data.get("jobs", [])[:5]
         if not jobs:
             await interaction.response.send_message("No recent jobs.")
             return
-        lines = [f"• `{j['id'][:8]}` — {j['type']} — **{j['status']}**" for j in jobs]
+        lines = [f"- `{j['id'][:8]}` - {j['type']} - **{j['status']}**" for j in jobs]
         await interaction.response.send_message("**Recent Jobs:**\n" + "\n".join(lines))
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to list jobs: {e}")
+    except Exception as exc:
+        await interaction.response.send_message(f"Failed to list jobs: {exc}")
+
+
+@tree.command(name="deps", description="Poll GitHub dependency PRs and alerts now", guild=guild)
+async def deps(interaction: discord.Interaction):
+    await interaction.response.defer()
+    try:
+        data = await broker_post("/api/dependencies/poll")
+        await interaction.followup.send(
+            "**Dependency Poll Complete**\n"
+            f"Repos checked: `{data.get('repositoriesChecked', 0)}`\n"
+            f"Dependabot PRs: `{data.get('pullRequestsSeen', 0)}`\n"
+            f"Dependabot alerts: `{data.get('alertsSeen', 0)}`\n"
+            f"Created: `{data.get('notificationsCreated', 0)}` Updated: `{data.get('notificationsUpdated', 0)}`"
+        )
+    except Exception as exc:
+        await interaction.followup.send(f"Dependency poll failed: {exc}")
+
+
+@tree.command(name="alerts", description="List Foundry dependency notifications", guild=guild)
+@app_commands.describe(pending="Only show undelivered notifications")
+async def alerts(interaction: discord.Interaction, pending: bool = True):
+    try:
+        data = await broker_get(f"/api/notifications?pending={str(pending).lower()}&limit=10")
+        notifications = data.get("notifications", [])
+        if not notifications:
+            scope = "pending" if pending else "recent"
+            await interaction.response.send_message(f"No {scope} notifications.")
+            return
+
+        lines = []
+        for notification in notifications:
+            source = notification.get("sourceUrl") or "no source URL"
+            lines.append(
+                f"- **{notification.get('category', 'info')}** "
+                f"{notification.get('title', 'notification')} - {source}"
+            )
+
+        text = "\n".join(lines)
+        if len(text) > MAX_DISCORD_OUTPUT_LENGTH:
+            text = text[:MAX_DISCORD_OUTPUT_LENGTH] + "\n..."
+        await interaction.response.send_message(text)
+    except Exception as exc:
+        await interaction.response.send_message(f"Failed to list alerts: {exc}")
+
+
+@tree.command(name="models", description="List configured and installed Ollama models", guild=guild)
+async def models(interaction: discord.Interaction):
+    try:
+        data = await broker_get("/api/models")
+        installed = data.get("installedModels", [])
+        visible = ", ".join(installed[:12]) if installed else "none reported"
+        await interaction.response.send_message(
+            "**Foundry Models**\n"
+            f"Provider: `{data.get('provider', 'unknown')}`\n"
+            f"Chat: `{data.get('chatModel', 'unset')}`\n"
+            f"Embeddings: `{data.get('embeddingModel', 'unset')}`\n"
+            f"Installed: {visible}"
+        )
+    except Exception as exc:
+        await interaction.response.send_message(f"Failed to list models: {exc}")
 
 
 async def run_script(
@@ -151,181 +295,31 @@ async def run_script(
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=REPO_ROOT,
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
         output = stdout.decode()[-MAX_DISCORD_OUTPUT_LENGTH:] if stdout else "No output"
+        if stderr:
+            logger.warning("Script %s wrote stderr: %s", script_name, stderr.decode()[-500:])
         await interaction.followup.send(f"**{description} complete:**\n```\n{output}\n```")
     except asyncio.TimeoutError:
-        await interaction.followup.send(f"❌ {description} timed out after 5 minutes")
-    except Exception as e:
-        await interaction.followup.send(f"❌ {description} failed: {e}")
+        await interaction.followup.send(f"{description} timed out after 10 minutes")
+    except Exception as exc:
+        await interaction.followup.send(f"{description} failed: {exc}")
 
 
-@tree.command(name="scan", description="Run issue pipeline — creates issues and assigns to Copilot", guild=guild)
-async def scan(interaction: discord.Interaction):
-    await run_script(interaction, "auto-issue-pipeline.ps1", "Issue scan")
-
-
-@tree.command(name="review", description="Score all open PRs with the scoring engine", guild=guild)
-async def review(interaction: discord.Interaction):
-    await run_script(interaction, "auto-pr-review.ps1", "PR review")
-
-
-@tree.command(name="approve", description="Approve a PR and log the decision", guild=guild)
-@app_commands.describe(pr_ref="PR reference (e.g. Foundry#27 or Suite#54)")
-async def approve(interaction: discord.Interaction, pr_ref: str):
-    await run_script(interaction, "approve.ps1", "Approve", script_dir="commands", extra_args=[pr_ref])
-
-
-@tree.command(name="reject", description="Reject a PR and log the decision", guild=guild)
-@app_commands.describe(pr_ref="PR reference (e.g. Foundry#31 or Suite#57)", reason="Reason for rejection")
-async def reject(interaction: discord.Interaction, pr_ref: str, reason: str = "No reason given"):
-    await run_script(interaction, "reject.ps1", "Reject", script_dir="commands", extra_args=[pr_ref, reason])
-
-
-@tree.command(name="triage", description="Group overlapping PRs and recommend merge order", guild=guild)
-async def triage(interaction: discord.Interaction):
-    await interaction.response.defer()
-    try:
-        # Fetch all open PRs from GitHub API
-        gh_headers = {"Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN', '')}", "Accept": "application/vnd.github.v3+json"}
-        repo = "Koraji95-coder/Foundry"
-
-        async with http_session.get(f"https://api.github.com/repos/{repo}/pulls?state=open&per_page=100", headers=gh_headers) as resp:
-            prs = await resp.json()
-
-        if not prs:
-            await interaction.followup.send(embed=discord.Embed(title="Triage", description="No open PRs.", color=0x3498db))
-            return
-
-        # Fetch file lists for each PR
-        pr_data = {}
-        for pr in prs:
-            try:
-                async with http_session.get(f"https://api.github.com/repos/{repo}/pulls/{pr['number']}/files?per_page=100", headers=gh_headers) as resp:
-                    files_resp = await resp.json()
-                pr_data[pr['number']] = {
-                    "title": pr['title'],
-                    "files": [f['filename'] for f in files_resp],
-                    "additions": pr.get('additions', 0),
-                    "deletions": pr.get('deletions', 0),
-                }
-            except Exception:
-                continue
-
-        # Try to get scores from the latest review data
-        pr_scores = {}
-        try:
-            state_root = os.environ.get("FOUNDRY_STATE_ROOT", os.path.expanduser("~/FoundryState"))
-            raw_path = os.path.join(state_root, "raw.jsonl")
-            if os.path.exists(raw_path):
-                with open(raw_path, "r") as f:
-                    for line in f:
-                        try:
-                            record = json.loads(line.strip())
-                            if record.get("pr_number") and record.get("score"):
-                                pr_scores[record["pr_number"]] = record["score"]
-                        except Exception:
-                            continue
-        except Exception:
-            pass
-
-        # Build conflict graph — PRs that share files are connected
-        clusters = []
-        assigned = set()
-
-        pr_numbers = list(pr_data.keys())
-        for i, pr_a in enumerate(pr_numbers):
-            if pr_a in assigned:
-                continue
-            cluster = [pr_a]
-            assigned.add(pr_a)
-            files_a = set(pr_data[pr_a]["files"])
-
-            for pr_b in pr_numbers[i+1:]:
-                if pr_b in assigned:
-                    continue
-                files_b = set(pr_data[pr_b]["files"])
-                overlap = files_a & files_b
-                if overlap:
-                    cluster.append(pr_b)
-                    assigned.add(pr_b)
-                    files_a |= files_b  # expand cluster's file set
-
-            if len(cluster) > 1:
-                clusters.append(cluster)
-
-        # Build the triage embed
-        if not clusters:
-            # No conflicts — just list all PRs sorted by score
-            sorted_prs = sorted(pr_data.keys(), key=lambda n: pr_scores.get(n, 0), reverse=True)
-            lines = []
-            for n in sorted_prs[:15]:
-                score = pr_scores.get(n, "?")
-                size = pr_data[n]["additions"] + pr_data[n]["deletions"]
-                lines.append(f"#{n} — score {score}/10 — {size} lines — {pr_data[n]['title'][:60]}")
-            embed = discord.Embed(title="Triage — no conflicts", description="No file overlaps detected. Merge in any order.", color=0x2ecc71)
-            embed.add_field(name="By score (highest first)", value="\n".join(lines) or "No PRs", inline=False)
-            await interaction.followup.send(embed=embed)
-            return
-
-        # Format conflict clusters with recommended merge order
-        embed = discord.Embed(title=f"Triage — {len(clusters)} conflict cluster{'s' if len(clusters) != 1 else ''}", color=0xf39c12)
-
-        for i, cluster in enumerate(clusters):
-            # Sort: highest score first, smallest size as tiebreaker
-            sorted_cluster = sorted(cluster, key=lambda n: (-pr_scores.get(n, 0), pr_data[n]["additions"] + pr_data[n]["deletions"]))
-
-            lines = []
-            for rank, n in enumerate(sorted_cluster):
-                score = pr_scores.get(n, "?")
-                size = pr_data[n]["additions"] + pr_data[n]["deletions"]
-                prefix = f"{rank+1}."
-                label = " (merge first)" if rank == 0 else " (re-review after)"
-                lines.append(f"{prefix} #{n} — score {score}/10 — {size} lines{label}")
-
-            # Find shared files (files appearing in 2+ PRs)
-            from collections import Counter
-            file_counts = Counter()
-            for n in cluster:
-                for f in pr_data[n]["files"]:
-                    file_counts[f] += 1
-            shared = {f for f, c in file_counts.items() if c >= 2}
-
-            embed.add_field(
-                name=f"Cluster {i+1}: {len(cluster)} PRs",
-                value="\n".join(lines) + f"\n*Shared files: {', '.join(sorted(shared)[:5])}{'...' if len(shared) > 5 else ''}*",
-                inline=False
-            )
-
-        # Add unconnected PRs
-        unconnected = [n for n in pr_numbers if n not in assigned]
-        if unconnected:
-            sorted_unc = sorted(unconnected, key=lambda n: pr_scores.get(n, 0), reverse=True)
-            lines = [f"#{n} — score {pr_scores.get(n, '?')}/10 — {pr_data[n]['title'][:50]}" for n in sorted_unc[:10]]
-            embed.add_field(name="No conflicts (merge anytime)", value="\n".join(lines), inline=False)
-
-        await interaction.followup.send(embed=embed)
-    except Exception as e:
-        logger.exception("Triage failed")
-        await interaction.followup.send(embed=discord.Embed(title="Triage failed", description=str(e)[:200], color=0xe74c3c))
-
-
-@tree.command(name="commands", description="List all Foundry bot commands", guild=guild)
+@tree.command(name="commands", description="List Foundry bot commands", guild=guild)
 async def list_commands(interaction: discord.Interaction):
     embed = discord.Embed(title="Foundry commands", color=0x3498DB)
     embed.add_field(name="/health", value="Check broker health", inline=False)
-    embed.add_field(name="/status", value="Get ML pipeline status", inline=False)
-    embed.add_field(name="/run [type]", value="Trigger ML pipeline (pipeline, embeddings, export, index)", inline=False)
+    embed.add_field(name="/status", value="Get broker and dependency monitor status", inline=False)
     embed.add_field(name="/jobs", value="List recent jobs", inline=False)
-    embed.add_field(name="/scan", value="Run issue pipeline — creates issues and assigns to Copilot", inline=False)
-    embed.add_field(name="/review", value="Score all open PRs with the scoring engine", inline=False)
-    embed.add_field(name="/approve [pr_ref]", value="Approve a PR and log the decision", inline=False)
-    embed.add_field(name="/reject [pr_ref] [reason]", value="Reject a PR and log the decision", inline=False)
-    embed.add_field(name="/triage", value="Group overlapping PRs and recommend merge order", inline=False)
-    embed.add_field(name="/commands", value="List all Foundry bot commands", inline=False)
+    embed.add_field(name="/deps", value="Poll dependency PRs and alerts now", inline=False)
+    embed.add_field(name="/alerts", value="List dependency notifications", inline=False)
+    embed.add_field(name="/models", value="List configured and installed Ollama models", inline=False)
+    embed.add_field(name="/commands", value="List bot commands", inline=False)
     await interaction.response.send_message(embed=embed)
 
 

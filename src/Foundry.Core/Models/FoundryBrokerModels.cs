@@ -7,7 +7,8 @@ public sealed class FoundryBrokerState
     public DateTimeOffset GeneratedAt { get; init; } = DateTimeOffset.Now;
     public FoundryBrokerStatusSection Broker { get; init; } = new();
     public FoundryProviderSection Provider { get; init; } = new();
-    public FoundryMLSection ML { get; init; } = new();
+    public FoundryAgentBrokerSection AgentBroker { get; init; } = new();
+    public FoundryDependencyMonitorSection DependencyMonitor { get; init; } = new();
 }
 
 public sealed class FoundryBrokerStatusSection
@@ -32,10 +33,19 @@ public sealed class FoundryProviderSection
     public IReadOnlyList<string> InstalledModels { get; init; } = Array.Empty<string>();
 }
 
-public sealed class FoundryMLSection
+public sealed class FoundryAgentBrokerSection
 {
-    public bool Enabled { get; init; }
-    public string Summary { get; init; } = "ML pipeline removed. See follow-up cleanup PRs.";
+    public bool Enabled { get; init; } = true;
+    public IReadOnlyList<string> Agents { get; init; } = Array.Empty<string>();
+}
+
+public sealed class FoundryDependencyMonitorSection
+{
+    public bool Enabled { get; init; } = true;
+    public int RepositoryCount { get; init; }
+    public IReadOnlyList<string> Repositories { get; init; } = Array.Empty<string>();
+    public int PollingIntervalMinutes { get; init; }
+    public int PendingNotificationCount { get; init; }
 }
 
 public sealed class FoundryLibraryImportResult

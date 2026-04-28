@@ -1,11 +1,22 @@
 {
-  "suiteRepoPath": "",
-  "suiteRuntimeStatusEndpoint": "http://127.0.0.1:5000/api/runtime/status",
   "ollamaEndpoint": "http://127.0.0.1:11434",
-  "mlModel": "deepseek-r1:14b",
+  "ollamaChatModel": "qwen2.5-coder:14b-instruct-q5_K_M",
+  "ollamaEmbeddingModel": "nomic-embed-text",
+  "githubRepos": [
+    "chamber-19/launcher",
+    "chamber-19/Foundry",
+    "chamber-19/Transmittal-Builder",
+    "chamber-19/Drawing-List-Manager",
+    "chamber-19/desktop-toolkit"
+  ],
+  "githubTokenEnvironmentVariable": "GITHUB_TOKEN",
+  "dependencyPollingIntervalMinutes": 10,
   "jobRetentionDays": 30,
   "knowledgeLibraryPath": "",
   "stateRootPath": "C:\\FoundryState",
   "additionalKnowledgePaths": [],
+  "notificationChannels": {
+    "discordAlerts": "alerts"
+  },
   "discordBotToken": ""
 }

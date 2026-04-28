@@ -6,15 +6,17 @@ namespace Foundry.Models;
 
 public sealed class FoundrySettings
 {
-    public string SuiteRepoPath { get; init; } = GetDefaultSuiteRepoPath();
-    public string SuiteRuntimeStatusEndpoint { get; init; } =
-        "http://127.0.0.1:5000/api/runtime/status";
     public string OllamaEndpoint { get; init; } = "http://127.0.0.1:11434";
-    public string MLModel { get; init; } = "qwen3:8b";
+    public string OllamaChatModel { get; init; } = "qwen2.5-coder:14b-instruct-q5_K_M";
+    public string OllamaEmbeddingModel { get; init; } = "nomic-embed-text";
+    public IReadOnlyList<string> GitHubRepos { get; init; } = GetDefaultGitHubRepos();
+    public string GitHubTokenEnvironmentVariable { get; init; } = "GITHUB_TOKEN";
+    public int DependencyPollingIntervalMinutes { get; init; } = 10;
     public int JobRetentionDays { get; init; } = 30;
     public string KnowledgeLibraryPath { get; init; } = string.Empty;
     public string StateRootPath { get; init; } = string.Empty;
     public IReadOnlyList<string> AdditionalKnowledgePaths { get; init; } = Array.Empty<string>();
+    public FoundryNotificationChannels NotificationChannels { get; init; } = new();
     public string? DiscordBotToken { get; init; }
 
     public string ResolveKnowledgeLibraryPath(string baseDirectory)
@@ -71,16 +73,14 @@ public sealed class FoundrySettings
         }
     }
 
-    private static string GetDefaultSuiteRepoPath()
-    {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(userProfile))
-        {
-            return Path.Combine(userProfile, "Documents", "GitHub", "Suite");
-        }
-
-        return Path.Combine("C:\\Users\\Public", "Documents", "GitHub", "Suite");
-    }
+    private static IReadOnlyList<string> GetDefaultGitHubRepos() =>
+    [
+        "chamber-19/launcher",
+        "chamber-19/Foundry",
+        "chamber-19/Transmittal-Builder",
+        "chamber-19/Drawing-List-Manager",
+        "chamber-19/desktop-toolkit",
+    ];
 
     private static string GetDefaultKnowledgeLibraryPath()
     {
@@ -131,4 +131,9 @@ public sealed class FoundrySettings
             target[property.Key] = property.Value?.DeepClone();
         }
     }
+}
+
+public sealed class FoundryNotificationChannels
+{
+    public string DiscordAlerts { get; init; } = "alerts";
 }

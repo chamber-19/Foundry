@@ -4,7 +4,7 @@ using Foundry.Models;
 namespace Foundry.Services;
 
 /// <summary>
-/// Manages a single LiteDB database instance for all Foundry ML pipeline persistence.
+/// Manages a single LiteDB database instance for Foundry broker persistence.
 /// </summary>
 public sealed class FoundryDatabase : IDisposable
 {
@@ -42,16 +42,20 @@ public sealed class FoundryDatabase : IDisposable
     public ILiteCollection<IndexedDocumentRecord> KnowledgeIndex =>
         _db.GetCollection<IndexedDocumentRecord>("knowledge_index");
 
+    public ILiteCollection<FoundryNotification> Notifications =>
+        _db.GetCollection<FoundryNotification>("notifications");
+
     private void EnsureIndexes()
     {
         DailyRuns.EnsureIndex(x => x.DateKey);
-        Jobs.EnsureIndex(x => x.Id);
         Jobs.EnsureIndex(x => x.Status);
         Jobs.EnsureIndex(x => x.CreatedAt);
-        JobSchedules.EnsureIndex(x => x.Id);
         JobSchedules.EnsureIndex(x => x.Enabled);
-        WorkflowTemplates.EnsureIndex(x => x.Id);
         KnowledgeIndex.EnsureIndex(x => x.DocumentPath);
+        Notifications.EnsureIndex(x => x.DedupeKey, unique: true);
+        Notifications.EnsureIndex(x => x.Repository);
+        Notifications.EnsureIndex(x => x.DeliveredAt);
+        Notifications.EnsureIndex(x => x.CreatedAt);
     }
 
     /// <summary>
