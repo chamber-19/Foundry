@@ -153,8 +153,8 @@ public sealed class KnowledgeReIndexingWorkflowTests
     //
     // The abort-on-failure requirement means that when KnowledgeIndex produces
     // failures, no subsequent step should run. Here we verify:
-    //   - The two policy constants are distinct and correct.
-    //   - Other built-in templates use "continue" (contrast with Knowledge Refresh).
+    //   - The abort and continue policy constants are distinct and correct.
+    //   - The "Daily Run" template uses "continue" (contrast with Knowledge Refresh abort).
     //   - KnowledgeIndexResult accurately surfaces failure counts that an abort
     //     check would use.
     // -------------------------------------------------------------------------

@@ -78,7 +78,6 @@ public sealed class WorkflowStore
                 Steps =
                 [
                     new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
-                    new WorkflowStep { JobType = FoundryJobType.DailyRun, Label = "Daily Run" },
                 ],
             },
             new WorkflowTemplate
