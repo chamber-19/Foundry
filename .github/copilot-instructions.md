@@ -1,90 +1,134 @@
-# Foundry — Copilot Instructions
+<!-- markdownlint-disable MD013 MD033 -->
+# Copilot Instructions
 
-## What this project is
+> **Family-wide rules:** See [chamber-19/.github](https://github.com/chamber-19/.github/blob/main/.github/copilot-instructions.md) for Chamber 19 org-wide Copilot guidance. This file contains **repo-specific** rules that layer on top of the org rules.
+>
+> **Repo:** `Koraji95-coder/Foundry` (transfer to `chamber-19/Foundry` planned)
+> **Role:** Internal agent broker for the Chamber 19 tool family — receives GitHub webhooks and Discord commands, routes to local-LLM agents (Ollama), posts structured output back
 
-Foundry is a standalone ML scoring and reasoning pipeline. It has three engines (scikit-learn for classification, PyTorch for embeddings, TensorFlow for forecasting) that run in sequence, cross-feeding through an EngineHandoff contract. It produces versioned artifacts consumed by a separate project called Suite. All operator interaction happens through a Discord bot — there is no GUI.
+---
 
-The runtime backbone is: ASP.NET Core broker (Foundry.Broker) → Ollama for LLM inference → Qdrant for vector storage → LiteDB for persistence → PowerShell/Python scripts for automation.
+## Mission — read this first
 
-## Think before coding
+Foundry is **transitioning** from a three-engine ML scoring pipeline (sklearn + PyTorch + TensorFlow) into a focused **agent broker**. Treat the ML scaffolding (`scripts/scoring/`, `scripts/ml/`, `MLAnalyticsService`, `MLPipelineCoordinator`, `OnnxMLEngine`, the TensorFlow/PyTorch services) as **scheduled for removal** — do not extend it, do not add new dependencies on it, do not write new tests against it.
 
-Do not assume. Do not hide confusion. Surface tradeoffs.
+**Keep and build on:**
 
-- If a change touches the ML pipeline (MLPipelineCoordinator, KnowledgeCoordinator, scoring scripts), state what you think the change will affect before implementing
-- If a change could break the EngineHandoff contract between engines, stop and explain
-- If you're unsure whether something is ML-related or leftover from the old Office/DailyDesk codebase, ask — don't guess
-- Present multiple approaches when the tradeoff isn't obvious (e.g., "we could add this to the coordinator or the endpoint — here's why each matters")
+- The Discord bot in `bot/` (operator UI)
+- The ASP.NET Core broker in `src/Foundry.Broker/` (HTTP + job queue)
+- The job persistence layer (`FoundryJobStore`, `FoundryDatabase`, `JobSchedulerStore`, `WorkflowStore`)
+- The Ollama service (`OllamaService.cs`)
+- The knowledge / RAG stack (`KnowledgeCoordinator`, `KnowledgeImportService`, `KnowledgeIndexStore`, `KnowledgeSearchService`, `EmbeddingService`, `VectorStoreService`) — this powers RAG over the chamber-19 repos
+- `ProcessRunner`, `FoundryResiliencePipelines`, `IModelProvider` plumbing
 
-## Simplicity first
+**Strip and replace:**
 
-Minimum code that solves the problem. Nothing speculative.
+- `MLAnalyticsService`, `MLPipelineCoordinator`, `MLResultStore`, `OnnxMLEngine` and their models
+- `scripts/scoring/`, `scripts/ml/` (training-side)
+- Suite artifact export endpoints (Suite is no longer a consumer)
+- The training-data / mastery / forecasting models in `Foundry.Core/Models/` (TrainingAttempt*, MLForecastResult, MLAnalyticsResult, TopicMasterySummary, LearningProfile, SuiteMLArtifact, etc.)
 
-- No abstractions for single-use code
-- No "flexibility" or "configurability" that wasn't requested
-- If 200 lines could be 50, rewrite it
-- The three-engine architecture is already the abstraction layer — don't add more layers on top of it
-- Python scripts should stay as standalone scripts invoked by ProcessRunner, not get wrapped in elaborate frameworks
+When in doubt about whether something stays: if it's used by the agent layer, the broker, the bot, or the knowledge index, **keep**. If it exists to score PRs, train models, persist ML results, or export to Suite, **strip**.
 
-## Surgical changes
+---
 
-Touch only what you must. Clean up only your own mess.
+## Architecture context
 
-- Don't "improve" adjacent code, comments, or formatting in files you're editing
-- Don't refactor the orchestrator, coordinators, or endpoint wiring unless specifically asked
-- Match existing patterns: services use constructor injection, endpoints use minimal API style, Python scripts read from stdin/file and write JSON to stdout
-- If you notice something wrong in unrelated code, mention it in a comment — don't fix it silently
+### Stack
 
-## Goal-driven execution
+- **.NET 10 SDK** — `Foundry.Core` (class library) + `Foundry.Broker` (ASP.NET Core minimal API host)
+- **Python 3.10+** — Discord bot in `bot/` only. Python is not used for ML anymore.
+- **Ollama** — local LLM runtime (`http://127.0.0.1:11434` by default). Pin model tags explicitly in `foundry.settings.json`.
+- **Qdrant or Chroma** — optional vector store for the knowledge index
+- **LiteDB** — embedded persistence for jobs, schedules, knowledge index metadata
 
-Define success criteria before implementing. Every change should be verifiable.
+### Process model
 
-- For ML changes: "these tests pass" or "this endpoint returns this shape"
-- For script changes: "running this script produces this output"
-- For model changes: "dotnet build succeeds with 0 errors, 0 warnings"
-- State the verification step explicitly so it can be run
+- The broker runs as a single ASP.NET Core process on `localhost:57420`
+- Background workers (`FoundryJobWorker`, `JobSchedulerWorker`, `JobRetentionWorker`) drain the queue
+- The Discord bot is a separate Python process that talks HTTP to the broker
+- Agents are invoked by the broker, not by the bot directly — the bot is a thin UI
 
-## Architecture rules
+### Where Foundry sits in the family
 
-### Project structure
-- `src/Foundry.Core/` — Models and Services. All ML logic lives here.
-- `src/Foundry.Broker/` — ASP.NET Core minimal API. Thin endpoints that delegate to coordinators.
-- `tests/Foundry.Core.Tests/` — xUnit tests.
-- `scripts/` — Python ML scripts, PowerShell automation, RAG pipeline, scoring engine.
-- `bot/` — Discord bot (Python, discord.py). Sole operator interface.
-- `schemas/` — Frozen feature schemas. Do not modify.
+| Caller | How it talks to Foundry |
+| --- | --- |
+| Operator (a human) | Discord slash commands → bot → broker HTTP API |
+| `chamber-19/transmittal-builder` etc. | GitHub webhooks → broker `/webhooks/github` → agent layer |
+| Future scheduled tasks | `JobSchedulerWorker` cron-like jobs |
 
-### Namespaces
-- `Foundry.Models` for all data models
-- `Foundry.Services` for all services
-- `Foundry.Broker` for broker-specific code
+Foundry is **not** consumed by other chamber-19 repos as a library. It is a **service** that observes them and acts on their behalf.
 
-### Key patterns
-- All ML operations route through `MLPipelineCoordinator` or `KnowledgeCoordinator`
-- `FoundryOrchestrator` is a thin delegator — never add business logic to it
-- Jobs are async-first using `FoundryJobStore` queue pattern
-- Python scripts are invoked via `ProcessRunner` — they read JSON from file/stdin and write JSON to stdout
-- Every Python script has heuristic fallbacks when ML libraries aren't installed
-- The `EngineHandoff` contract means scikit-learn's cluster labels flow into PyTorch's metadata, and PyTorch's similarity scores flow into TensorFlow's input features
+---
 
-### Environment
-- .NET 10, target `net10.0` (never `net10.0-windows`)
-- Python 3.13 via miniconda3
-- PowerShell 7 (`pwsh`, not `powershell`)
-- Shared state path: `FOUNDRY_STATE_ROOT` env var → `C:\FoundryState` fallback
-- Repo path: `FOUNDRY_REPO_ROOT` env var → `%USERPROFILE%\Documents\GitHub\Foundry` fallback
+## Repo-specific rules — Foundry
 
-### What does NOT belong in this repo
-- No WPF, MAUI, Blazor, or any desktop/web UI code
-- No chat agents, operator memory, or research services (these were in the old Office repo)
-- No Semantic Kernel agent orchestration
-- No direct LLM chat routing — all LLM calls go through the broker or scripts
-- No references to "DailyDesk", "Office", or the old repo structure
-- No Dropbox paths — shared state uses Tailscale SMB or FOUNDRY_STATE_ROOT
+## 1. Don't reintroduce the ML pipeline
 
-### Multi-machine context
-This pipeline runs across 3 machines connected via Tailscale:
-- DUSTIN (i7-14700K, 32GB, 7700 XT) — primary, runs broker + GPU inference
-- DUSTINWARD (Ultra 7 155H, 64GB) — batch processing, CPU inference
-- PRETTYANDPINK (Ryzen 9 5900X, 64GB) — overnight embeddings, shared machine
+The org-wide rules already say to push back on Suite-style infrastructure. For Foundry specifically that means:
 
-The broker binds to a configurable host (default 127.0.0.1, overridable to Tailscale IP). Scripts use `FOUNDRY_STATE_ROOT` which points to a shared SMB mount on other machines.
+- No new ML training code, model retraining loops, or feature engineering pipelines
+- No new dependencies on TensorFlow.NET, TorchSharp, ML.NET, ONNX Runtime, or scikit-learn
+- No restoration of `scripts/scoring/` or `scripts/ml/` even if asked — the user has decided these go
+- The `EngineHandoff` contract is being renamed to `AgentHandoff`. If you see `EngineHandoff` referenced in new code, it's stale
+
+If the user asks for a feature that sounds like the old ML pipeline, ask whether they want it as an **agent** (LLM call wrapped in deterministic pre/post-processing) instead. The answer is almost always yes.
+
+## 2. Agent design contract
+
+Agents are server-side workers that:
+
+1. Receive a structured request (webhook payload, Discord command, scheduled trigger)
+2. Run **deterministic pre-checks** first (semver parsing, ecosystem detection, special-case lookups) — no LLM
+3. Use the LLM for **structured extraction**, never for open-ended judgment. Output must match a JSON schema validated by the caller.
+4. Apply a **rule engine** to the structured output to produce a verdict
+5. Post the verdict back via the GitHub API or Discord
+
+This layered design is what makes a 7B–14B local model usable. If a proposed agent design relies on the LLM "deciding" something with no schema and no pre/post layers, push back — that pattern fails on local models.
+
+## 3. Local-LLM constraints
+
+- Pin Ollama model tags explicitly (e.g. `qwen2.5-coder:14b-instruct-q5_K_M`, not `qwen2.5-coder:14b`). Models update under you otherwise.
+- Use Ollama's `format: "json"` mode plus a Pydantic / System.Text.Json validator with a one-shot retry on schema failure. Do NOT introduce grammar-constrained decoding (outlines, llama.cpp grammars) without a measured failure rate that justifies it.
+- Every agent must have an eval set under `evals/` with at least 20 hand-labeled examples before it ships. Shadow-mode (post comments, do not auto-merge) for at least two weeks before enabling write actions.
+- If Ollama is unreachable, agents must **fail open to "needs human review"** — never silently auto-approve.
+
+## 4. Documentation currency
+
+Every PR you produce **must** keep these docs in lockstep with the code:
+
+| When you change … | You must also update … |
+| --- | --- |
+| `foundry.settings.json` shape or any field in `FoundrySettings.cs` | `README.md` § Configuration and `docs/` if a corresponding architecture doc exists |
+| Any HTTP endpoint in `src/Foundry.Broker/Endpoints/` | `README.md` § Key Endpoints route table |
+| `bot/foundry_bot.py` slash command surface | `bot/` README (create if absent) and `README.md` § Discord Bot |
+| Agent contract (system prompt, JSON schema, model selection) | A note in `evals/README.md` and the agent's eval golden set |
+| `bot/requirements.txt` | `README.md` § Prerequisites if Python version changes |
+| Any user-facing behaviour | `CHANGELOG.md` `## [Unreleased]` (create the file if it doesn't exist) |
+
+If a PR changes code but leaves a doc inconsistent, the PR is incomplete.
+
+## 5. Markdown formatting
+
+All `*.md` files must pass `markdownlint-cli2 "**/*.md"` against the rules in `.markdownlint.jsonc` (create one matching the other chamber-19 repos if absent). In short:
+
+- Fenced code blocks: always declare a language. Use `text` for prose, ASCII art, or shell session output — never a bare block
+- Use `_emphasis_` and `**strong**` consistently
+- Surround headings, lists, and fenced blocks with blank lines
+- First line of every file is a `#` H1; archival callouts go below it
+
+## 6. Secrets and tokens
+
+- `discordBotToken`, `githubAppPrivateKey`, and any Ollama auth credentials live in `foundry.settings.local.json` (gitignored), environment variables, or a secret manager — never in `foundry.settings.json`
+- The example config (`bot_config.example.json`) carries placeholder values, never real ones
+- When implementing a webhook receiver, validate the GitHub `X-Hub-Signature-256` header before processing — never trust the payload
+
+## 7. Reference docs
+
+- [`README.md`](../README.md) — top-level architecture, endpoint table, settings reference
+- [`evals/README.md`](../evals/README.md) — eval dataset conventions (build evals before agents)
+- [`bot/foundry_bot.py`](../bot/foundry_bot.py) — Discord bot entry point
+- [`src/Foundry.Broker/Program.cs`](../src/Foundry.Broker/Program.cs) — broker startup and DI wiring
+- `chamber-19/.github` org rules — family-wide conventions, MCP server usage, design system
+
+If you find a discrepancy between code and these docs, fixing the doc is part of your job, not someone else's.
