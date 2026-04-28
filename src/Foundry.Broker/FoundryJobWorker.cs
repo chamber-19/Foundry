@@ -77,11 +77,6 @@ public sealed class FoundryJobWorker : BackgroundService
         {
             var resultJson = job.Type switch
             {
-                FoundryJobType.MLAnalytics => await ExecuteMLAnalyticsAsync(ct),
-                FoundryJobType.MLForecast => await ExecuteMLForecastAsync(ct),
-                FoundryJobType.MLEmbeddings => await ExecuteMLEmbeddingsAsync(job.RequestPayload, ct),
-                FoundryJobType.MLPipeline => await ExecuteMLPipelineAsync(ct),
-                FoundryJobType.MLExportArtifacts => await ExecuteMLExportArtifactsAsync(ct),
                 FoundryJobType.KnowledgeIndex => await ExecuteKnowledgeIndexAsync(ct),
                 FoundryJobType.DailyRun => await ExecuteDailyRunAsync(ct),
                 _ => throw new InvalidOperationException($"Unknown job type: {job.Type}"),
@@ -108,50 +103,6 @@ public sealed class FoundryJobWorker : BackgroundService
         }
     }
 
-    private Task<string> ExecuteMLAnalyticsAsync(CancellationToken ct)
-    {
-        var result = new Foundry.Models.MLAnalyticsResult { Ok = false, Engine = "not-run" };
-        return Task.FromResult(JsonSerializer.Serialize(result, _jsonOptions));
-    }
-
-    private Task<string> ExecuteMLForecastAsync(CancellationToken ct)
-    {
-        var result = new Foundry.Models.MLForecastResult { Ok = false, Engine = "not-run" };
-        return Task.FromResult(JsonSerializer.Serialize(result, _jsonOptions));
-    }
-
-    private async Task<string> ExecuteMLEmbeddingsAsync(string? requestPayload, CancellationToken ct)
-    {
-        string? query = null;
-        if (!string.IsNullOrWhiteSpace(requestPayload))
-        {
-            try
-            {
-                var payload = JsonSerializer.Deserialize<MLEmbeddingsJobPayload>(requestPayload, _jsonOptions);
-                query = payload?.Query;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Malformed embeddings job payload, proceeding with default query.");
-            }
-        }
-
-        var result = await _orchestrator.RunMLEmbeddingsAsync(query, ct);
-        return JsonSerializer.Serialize(result, _jsonOptions);
-    }
-
-    private async Task<string> ExecuteMLPipelineAsync(CancellationToken ct)
-    {
-        var result = await _orchestrator.RunFullMLPipelineAsync(ct);
-        return JsonSerializer.Serialize(result, _jsonOptions);
-    }
-
-    private async Task<string> ExecuteMLExportArtifactsAsync(CancellationToken ct)
-    {
-        var result = await _orchestrator.ExportSuiteArtifactsAsync(ct);
-        return JsonSerializer.Serialize(result, _jsonOptions);
-    }
-
     private async Task<string> ExecuteKnowledgeIndexAsync(CancellationToken ct)
     {
         var result = await _orchestrator.RunKnowledgeIndexAsync(ct);
@@ -162,10 +113,5 @@ public sealed class FoundryJobWorker : BackgroundService
     {
         var result = await _orchestrator.RunDailyWorkflowAsync(ct);
         return JsonSerializer.Serialize(result, _jsonOptions);
-    }
-
-    private sealed class MLEmbeddingsJobPayload
-    {
-        public string? Query { get; set; }
     }
 }

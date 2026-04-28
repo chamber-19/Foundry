@@ -35,12 +35,7 @@ public sealed class FoundryProviderSection
 public sealed class FoundryMLSection
 {
     public bool Enabled { get; init; }
-    public string Summary { get; init; } = "ML pipeline is not enabled. Set enableMLPipeline to true in settings.";
-    public MLAnalyticsResult? Analytics { get; init; }
-    public MLForecastResult? Forecast { get; init; }
-    public MLEmbeddingsResult? Embeddings { get; init; }
-    public string? LastArtifactExportPath { get; init; }
-    public DateTimeOffset? LastRunAt { get; init; }
+    public string Summary { get; init; } = "ML pipeline removed. See follow-up cleanup PRs.";
 }
 
 public sealed class FoundryLibraryImportResult

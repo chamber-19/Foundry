@@ -27,9 +27,6 @@ public sealed class FoundryDatabase : IDisposable
         EnsureIndexes();
     }
 
-    public ILiteCollection<TrainingAttemptRecord> PracticeAttempts =>
-        _db.GetCollection<TrainingAttemptRecord>("training_practice_attempts");
-
     public ILiteCollection<DailyRunTemplate> DailyRuns =>
         _db.GetCollection<DailyRunTemplate>("operator_daily_runs");
 
@@ -42,21 +39,11 @@ public sealed class FoundryDatabase : IDisposable
     public ILiteCollection<WorkflowTemplate> WorkflowTemplates =>
         _db.GetCollection<WorkflowTemplate>("workflow_templates");
 
-    public ILiteCollection<PersistedMLResult> MLAnalyticsResults =>
-        _db.GetCollection<PersistedMLResult>("ml_analytics");
-
-    public ILiteCollection<PersistedMLResult> MLForecastResults =>
-        _db.GetCollection<PersistedMLResult>("ml_forecast");
-
-    public ILiteCollection<PersistedMLResult> MLEmbeddingsResults =>
-        _db.GetCollection<PersistedMLResult>("ml_embeddings");
-
     public ILiteCollection<IndexedDocumentRecord> KnowledgeIndex =>
         _db.GetCollection<IndexedDocumentRecord>("knowledge_index");
 
     private void EnsureIndexes()
     {
-        PracticeAttempts.EnsureIndex(x => x.CompletedAt);
         DailyRuns.EnsureIndex(x => x.DateKey);
         Jobs.EnsureIndex(x => x.Id);
         Jobs.EnsureIndex(x => x.Status);

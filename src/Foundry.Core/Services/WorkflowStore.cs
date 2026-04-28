@@ -72,39 +72,24 @@ public sealed class WorkflowStore
             new WorkflowTemplate
             {
                 Name = "Daily Run",
-                Description = "Full daily workflow: ML pipeline, export artifacts, generate operator suggestions.",
+                Description = "Full daily workflow: knowledge indexing and operator context refresh.",
                 BuiltIn = true,
                 FailurePolicy = WorkflowFailurePolicy.Continue,
                 Steps =
                 [
-                    new WorkflowStep { JobType = FoundryJobType.MLPipeline, Label = "Run ML Pipeline" },
-                    new WorkflowStep { JobType = FoundryJobType.MLExportArtifacts, Label = "Export Suite Artifacts" },
                     new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
-                ],
-            },
-            new WorkflowTemplate
-            {
-                Name = "Exam Prep",
-                Description = "Focused workflow for exam preparation: analytics and knowledge indexing.",
-                BuiltIn = true,
-                FailurePolicy = WorkflowFailurePolicy.Continue,
-                Steps =
-                [
-                    new WorkflowStep { JobType = FoundryJobType.MLAnalytics, Label = "Run Learning Analytics" },
-                    new WorkflowStep { JobType = FoundryJobType.MLEmbeddings, Label = "Generate Document Embeddings" },
-                    new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
+                    new WorkflowStep { JobType = FoundryJobType.DailyRun, Label = "Daily Run" },
                 ],
             },
             new WorkflowTemplate
             {
                 Name = "Knowledge Refresh",
-                Description = "Re-index all knowledge documents and update embeddings.",
+                Description = "Re-index all knowledge documents.",
                 BuiltIn = true,
                 FailurePolicy = WorkflowFailurePolicy.Abort,
                 Steps =
                 [
                     new WorkflowStep { JobType = FoundryJobType.KnowledgeIndex, Label = "Index Knowledge Documents" },
-                    new WorkflowStep { JobType = FoundryJobType.MLEmbeddings, Label = "Refresh Document Embeddings" },
                 ],
             },
         };

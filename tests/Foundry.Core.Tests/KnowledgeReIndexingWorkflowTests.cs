@@ -98,7 +98,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
     }
 
     [Fact]
-    public void KnowledgeRefresh_Template_HasExactlyTwoSteps()
+    public void KnowledgeRefresh_Template_HasExactlyOneStep()
     {
         using var tmp = new TempDirectory();
         using var db = new FoundryDatabase(tmp.Path);
@@ -106,31 +106,7 @@ public sealed class KnowledgeReIndexingWorkflowTests
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
 
-        Assert.Equal(2, template.Steps.Count);
-    }
-
-    [Fact]
-    public void KnowledgeRefresh_Template_FirstStep_IsKnowledgeIndex()
-    {
-        using var tmp = new TempDirectory();
-        using var db = new FoundryDatabase(tmp.Path);
-        var store = new WorkflowStore(db);
-
-        var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
-
-        Assert.Equal(FoundryJobType.KnowledgeIndex, template.Steps[0].JobType);
-    }
-
-    [Fact]
-    public void KnowledgeRefresh_Template_SecondStep_IsMLEmbeddings()
-    {
-        using var tmp = new TempDirectory();
-        using var db = new FoundryDatabase(tmp.Path);
-        var store = new WorkflowStore(db);
-
-        var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
-
-        Assert.Equal(FoundryJobType.MLEmbeddings, template.Steps[1].JobType);
+        Assert.Single(template.Steps);
     }
 
     [Fact]
@@ -168,16 +144,15 @@ public sealed class KnowledgeReIndexingWorkflowTests
 
         var template = store.ListAll().Single(w => w.Name == "Knowledge Refresh");
 
-        // The guide names these steps "Index Knowledge Documents" and "Refresh Document Embeddings"
+        // The guide names this step "Index Knowledge Documents"
         Assert.Equal("Index Knowledge Documents", template.Steps[0].Label);
-        Assert.Equal("Refresh Document Embeddings", template.Steps[1].Label);
     }
 
     // -------------------------------------------------------------------------
     // Group 2: Abort-on-failure semantics
     //
     // The abort-on-failure requirement means that when KnowledgeIndex produces
-    // failures, the subsequent MLEmbeddings step must not run. Here we verify:
+    // failures, no subsequent step should run. Here we verify:
     //   - The two policy constants are distinct and correct.
     //   - Other built-in templates use "continue" (contrast with Knowledge Refresh).
     //   - KnowledgeIndexResult accurately surfaces failure counts that an abort
@@ -220,18 +195,6 @@ public sealed class KnowledgeReIndexingWorkflowTests
         var store = new WorkflowStore(db);
 
         var template = store.ListAll().Single(w => w.Name == "Daily Run");
-
-        Assert.Equal(WorkflowFailurePolicy.Continue, template.FailurePolicy);
-    }
-
-    [Fact]
-    public void ExamPrep_Template_HasContinuePolicy()
-    {
-        using var tmp = new TempDirectory();
-        using var db = new FoundryDatabase(tmp.Path);
-        var store = new WorkflowStore(db);
-
-        var template = store.ListAll().Single(w => w.Name == "Exam Prep");
 
         Assert.Equal(WorkflowFailurePolicy.Continue, template.FailurePolicy);
     }

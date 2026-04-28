@@ -1,52 +1,48 @@
-# Foundry — ML Scoring & Reasoning Pipeline
+# Foundry — Agent Broker
 
-Foundry is a standalone three-engine ML pipeline that produces versioned artifacts for [Suite](https://github.com/Koraji95-coder/Suite). It scores pull requests, generates semantic embeddings for knowledge indexing, and runs time-series accuracy forecasting — all orchestrated through an ASP.NET Core broker API with a Discord bot as the sole operator interface.
+> **Status:** Foundry is mid-pivot from an ML scoring pipeline to an internal
+> agent broker for the chamber-19 family. The README reflects the *target*
+> shape; some scaffolding for the old design may remain in-tree pending
+> follow-up cleanup PRs.
+
+Foundry is a focused agent broker for the chamber-19 tool family. It provides a knowledge/RAG stack for semantic search and document indexing, a Discord bot as the sole operator interface, and an ASP.NET Core broker API with an async job queue.
 
 ## What Foundry Does
 
-### Three-Engine ML Pipeline
-The engines run in sequence with explicit cross-feed via an **EngineHandoff** contract:
-
-1. **Scikit-learn** — Clustering, classification, PR scoring, topic grouping, operator readiness prediction
-2. **PyTorch** — Semantic embeddings for knowledge indexing via Qdrant, document similarity
-3. **TensorFlow** — Time-series accuracy forecasting, plateau detection, anomaly alerts, mastery estimation
-
-Each engine has heuristic fallbacks when its ML library isn't installed.
-
-### PR Scoring Engine
-- Deterministic gates: CI pass, duplicate check
-- Weighted signals: tests, PR size, commit format, churn risk
-- LLM adjustment via local Ollama
-
-### RAG Pipeline
-- ChromaDB/Qdrant document indexing + vector search
-- Ollama-powered query answering
+### Knowledge / RAG Stack
+- Qdrant-backed document indexing via Ollama embeddings
+- Semantic search over knowledge documents
+- RAG context building for operator queries
 
 ### Broker API
 - ASP.NET Core minimal API on `localhost:57420`
-- ML endpoints, job scheduling, health checks
 - Async job queue with LiteDB persistence
+- Job scheduling and workflow templates
+- Health checks
+
+### Discord Bot
+- Sole operator interface
+- Routes all LLM inference through the broker/Ollama
 
 ## Project Layout
 
 ```
 Foundry/
 ├── src/
-│   ├── Foundry.Core/           # Shared models + ML services (class library)
-│   │   ├── Models/             # Data models (ML results, jobs, settings)
-│   │   └── Services/           # ML services, coordinators, persistence
+│   ├── Foundry.Core/           # Shared models + services (class library)
+│   │   ├── Models/             # Data models (jobs, settings, knowledge)
+│   │   └── Services/           # Services, coordinators, persistence
 │   └── Foundry.Broker/         # ASP.NET Core API host
 │       └── Endpoints/          # HTTP endpoint definitions
 ├── tests/
 │   └── Foundry.Core.Tests/     # xUnit tests
 ├── scripts/
-│   ├── scoring/                # PR scoring (preprocessor, schema validation, retraining)
 │   ├── rag/                    # RAG pipeline (indexer, search, query)
-│   ├── ml/                     # ML artifacts, embeddings, document preprocessing
 │   ├── automation/             # PR review, issue scanning, Discord briefs, scheduled tasks
 │   └── commands/               # Operator commands (review, approve, reject, scan, status)
 ├── bot/                        # Discord bot — sole operator interface
-├── schemas/                    # Feature schema (frozen training data validation)
+├── evals/                      # Agent evaluation harness (being repurposed)
+├── schemas/                    # Feature schema (frozen)
 ├── docs/                       # Architecture, conventions, roadmap
 └── Foundry.sln                 # Solution file
 ```
@@ -55,7 +51,7 @@ Foundry/
 
 ### Prerequisites
 - .NET 10 SDK
-- Python 3.10+ (for ML scripts)
+- Python 3.10+ (for RAG scripts)
 - Ollama (for LLM and embedding inference)
 - Qdrant (optional, for vector search)
 
@@ -88,22 +84,14 @@ python foundry_bot.py
 |--------|------|-------------|
 | `GET` | `/health` | Basic health check |
 | `GET` | `/api/health` | Detailed subsystem health |
-| `GET` | `/api/state` | Current pipeline state |
-| `POST` | `/api/ml/pipeline` | Run full ML pipeline |
-| `POST` | `/api/ml/embeddings` | Run document embeddings |
-| `POST` | `/api/ml/export-artifacts` | Export Suite artifacts |
+| `GET` | `/api/state` | Current broker state |
 | `POST` | `/api/ml/index-knowledge` | Index knowledge documents |
 | `GET` | `/api/knowledge/index-status` | Knowledge index status |
 | `POST` | `/api/knowledge/search` | Semantic search |
 | `GET` | `/api/jobs` | List recent jobs |
+| `GET` | `/api/jobs/{jobId}` | Get job by ID |
 | `GET` | `/api/schedules` | List job schedules |
 | `POST` | `/api/workflows` | Create workflow template |
-
-All ML endpoints support `?sync=true` for synchronous execution or default to async job queuing.
-
-## Artifacts
-
-Artifacts are exported to `State/ml-artifacts/` and consumed by Suite through its review-first workflows.
 
 ## Configuration
 
@@ -111,10 +99,8 @@ Settings are loaded from `foundry.settings.json` (or `foundry.settings.local.jso
 
 ```json
 {
-  "enableMLPipeline": true,
   "ollamaEndpoint": "http://127.0.0.1:11434",
   "mlModel": "qwen3:8b",
-  "mlArtifactExportPath": "",
   "jobRetentionDays": 30,
   "knowledgeLibraryPath": "",
   "stateRootPath": "",

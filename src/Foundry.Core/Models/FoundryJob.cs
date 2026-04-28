@@ -45,11 +45,6 @@ public static class FoundryJobStatus
 /// </summary>
 public static class FoundryJobType
 {
-    public const string MLAnalytics = "ml-analytics";
-    public const string MLForecast = "ml-forecast";
-    public const string MLEmbeddings = "ml-embeddings";
-    public const string MLPipeline = "ml-pipeline";
-    public const string MLExportArtifacts = "ml-export-artifacts";
     public const string KnowledgeIndex = "knowledge-index";
     public const string DailyRun = "daily-run";
 }

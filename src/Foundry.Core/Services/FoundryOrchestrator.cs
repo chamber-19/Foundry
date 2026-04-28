@@ -16,6 +16,7 @@ public sealed class FoundryOrchestrator
     private static readonly TimeSpan LearningLibraryLoadTimeout = TimeSpan.FromSeconds(20);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
+    // TODO(strip-down): Remove _mlGate after FoundryOrchestrator cleanup PR
     private readonly SemaphoreSlim _mlGate = new(1, 1);
     private readonly FoundryBrokerRuntimeMetadata _brokerMetadata;
     private readonly FoundrySettings _settings;
@@ -26,12 +27,10 @@ public sealed class FoundryOrchestrator
 
     private readonly IModelProvider _modelProvider;
     private readonly KnowledgeImportService _knowledgeImportService;
-    private readonly MLAnalyticsService _mlAnalyticsService;
-    private readonly MLPipelineCoordinator _mlPipelineCoordinator;
+    // TODO(strip-down): Remove _mlAnalyticsService, _mlPipelineCoordinator, _mlResultStore after FoundryOrchestrator cleanup PR
     private readonly KnowledgeCoordinator _knowledgeCoordinator;
     private readonly FoundryDatabase _foundryDatabase;
     private readonly FoundryJobStore _jobStore;
-    private readonly MLResultStore _mlResultStore;
     private readonly ProcessRunner _processRunner;
     private readonly EmbeddingService _embeddingService;
     private readonly VectorStoreService _vectorStoreService;
@@ -43,11 +42,8 @@ public sealed class FoundryOrchestrator
     private DateTimeOffset _lastRefreshAt = DateTimeOffset.Now;
     private IReadOnlyList<string> _installedModelCache = Array.Empty<string>();
     private LearningLibrary _learningLibrary = new();
+    // TODO(strip-down): Remove _learningProfile, _latestMLAnalytics, _latestMLEmbeddings, _lastMLArtifactExportPath, _lastMLRunAt after FoundryOrchestrator cleanup PR
     private LearningProfile _learningProfile = new();
-    private MLAnalyticsResult? _latestMLAnalytics;
-    private MLEmbeddingsResult? _latestMLEmbeddings;
-    private string? _lastMLArtifactExportPath;
-    private DateTimeOffset? _lastMLRunAt;
 
     public FoundryOrchestrator(FoundryBrokerRuntimeMetadata brokerMetadata, ILoggerFactory? loggerFactory = null)
     {
@@ -68,7 +64,7 @@ public sealed class FoundryOrchestrator
         // LiteDB persistence
         _foundryDatabase = new FoundryDatabase(_stateRootPath);
         _jobStore = new FoundryJobStore(_foundryDatabase);
-        _mlResultStore = new MLResultStore(_foundryDatabase, lf.CreateLogger<MLResultStore>());
+        // TODO(strip-down): Remove MLResultStore after FoundryOrchestrator cleanup PR
 
         _processRunner = new ProcessRunner(lf.CreateLogger<ProcessRunner>());
         _modelProvider = new OllamaService(_settings.OllamaEndpoint, _processRunner, ollamaPipeline, lf.CreateLogger<OllamaService>());
@@ -76,14 +72,7 @@ public sealed class FoundryOrchestrator
             _processRunner,
             Path.Combine(_foundryRootPath, "scripts", "ml", "extract_document_text.py")
         );
-        _mlAnalyticsService = new MLAnalyticsService(
-            _processRunner,
-            Path.Combine(_foundryRootPath, "scripts", "ml"),
-            new OnnxMLEngine(Path.Combine(_foundryRootPath, "models", "onnx")),
-            resiliencePipeline: pythonPipeline,
-            logger: lf.CreateLogger<MLAnalyticsService>()
-        );
-        _mlPipelineCoordinator = new MLPipelineCoordinator(_mlAnalyticsService, _mlResultStore);
+        // TODO(strip-down): Remove MLAnalyticsService, MLPipelineCoordinator, MLResultStore construction after FoundryOrchestrator cleanup PR
 
         // Semantic search services
         var ollamaUri = new Uri(_settings.OllamaEndpoint.EndsWith("/") ? _settings.OllamaEndpoint : $"{_settings.OllamaEndpoint}/");
@@ -108,7 +97,7 @@ public sealed class FoundryOrchestrator
     public KnowledgeIndexStore KnowledgeIndexStore => _knowledgeIndexStore;
     public JobSchedulerStore SchedulerStore => _schedulerStore;
     public WorkflowStore WorkflowStore => _workflowStore;
-    public MLPipelineCoordinator MLPipeline => _mlPipelineCoordinator;
+    // TODO(strip-down): Remove MLPipeline property after FoundryOrchestrator cleanup PR
     public KnowledgeCoordinator Knowledge => _knowledgeCoordinator;
 
     // --- Health ---
@@ -241,182 +230,20 @@ public sealed class FoundryOrchestrator
                 InstalledModelCount = _installedModelCache.Count,
                 InstalledModels = _installedModelCache,
             },
-            ML = BuildMLSectionLocked(),
+            // TODO(strip-down): Remove FoundryMLSection from FoundryBrokerState after FoundryOrchestrator cleanup PR
+            ML = new FoundryMLSection(),
         };
     }
 
-    private FoundryMLSection BuildMLSectionLocked()
-    {
-        if (!_settings.EnableMLPipeline)
-        {
-            return new FoundryMLSection
-            {
-                Enabled = false,
-                Summary = "ML pipeline is not enabled. Set enableMLPipeline to true in settings.",
-            };
-        }
+    // TODO(strip-down): Remove BuildMLSectionLocked after FoundryOrchestrator cleanup PR
+    // private FoundryMLSection BuildMLSectionLocked() { ... }
 
-        var summary = _latestMLAnalytics is not null
-            ? $"ML pipeline active ({_latestMLAnalytics.Engine}). Readiness: {_latestMLAnalytics.OverallReadiness:P0}. " +
-              $"Weak topics: {_latestMLAnalytics.WeakTopics.Count}. " +
-              $"Forecast engine: not run. " +
-              $"Embeddings: {_latestMLEmbeddings?.Engine ?? "not run"}."
-            : "ML pipeline is enabled but has not been run yet. Use the ML endpoints to analyze your learning data.";
-
-        return new FoundryMLSection
-        {
-            Enabled = true,
-            Summary = summary,
-            Analytics = _latestMLAnalytics,
-            Forecast = null,
-            Embeddings = _latestMLEmbeddings,
-            LastArtifactExportPath = _lastMLArtifactExportPath,
-            LastRunAt = _lastMLRunAt,
-        };
-    }
-
-    // --- ML Pipeline (delegated) ---
-
-    public async Task<MLEmbeddingsResult> RunMLEmbeddingsAsync(
-        string? query = null,
-        CancellationToken cancellationToken = default)
-    {
-        IReadOnlyList<LearningDocument> documents;
-
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await EnsureInitializedLockedAsync(cancellationToken);
-            documents = _learningLibrary.Documents;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-
-        await _mlGate.WaitAsync(cancellationToken);
-        try
-        {
-            var result = await _mlPipelineCoordinator.RunMLEmbeddingsAsync(documents, query, cancellationToken);
-
-            await _gate.WaitAsync(cancellationToken);
-            try
-            {
-                _latestMLEmbeddings = result;
-                _lastMLRunAt = DateTimeOffset.Now;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-
-            return result;
-        }
-        finally
-        {
-            _mlGate.Release();
-        }
-    }
-
-    public async Task<object> RunFullMLPipelineAsync(CancellationToken cancellationToken = default)
-    {
-        IReadOnlyList<LearningDocument> documents;
-
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await EnsureInitializedLockedAsync(cancellationToken);
-            documents = _learningLibrary.Documents;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-
-        await _mlGate.WaitAsync(cancellationToken);
-        try
-        {
-            var pipelineResult = await _mlPipelineCoordinator.RunFullMLPipelineAsync(
-                Array.Empty<TrainingAttemptRecord>(),
-                Array.Empty<object>(),
-                documents,
-                _stateRootPath,
-                cancellationToken
-            );
-
-            await _gate.WaitAsync(cancellationToken);
-            try
-            {
-                _latestMLAnalytics = pipelineResult.Analytics;
-                _latestMLEmbeddings = pipelineResult.Embeddings;
-                _lastMLArtifactExportPath = pipelineResult.ExportPath;
-                _lastMLRunAt = DateTimeOffset.Now;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-
-            return new
-            {
-                analytics = pipelineResult.Analytics,
-                forecast = pipelineResult.Forecast,
-                embeddings = pipelineResult.Embeddings,
-                artifacts = pipelineResult.Artifacts,
-                exportPath = pipelineResult.ExportPath,
-            };
-        }
-        finally
-        {
-            _mlGate.Release();
-        }
-    }
-
-    public async Task<SuiteMLArtifactBundle> ExportSuiteArtifactsAsync(CancellationToken cancellationToken = default)
-    {
-        MLAnalyticsResult analytics;
-        MLEmbeddingsResult embeddings;
-        MLForecastResult forecast;
-
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            await EnsureInitializedLockedAsync(cancellationToken);
-            analytics = _latestMLAnalytics ?? new MLAnalyticsResult { Ok = false, Engine = "not-run" };
-            embeddings = _latestMLEmbeddings ?? new MLEmbeddingsResult { Ok = false, Engine = "not-run" };
-            forecast = new MLForecastResult { Ok = false, Engine = "not-run" };
-        }
-        finally
-        {
-            _gate.Release();
-        }
-
-        await _mlGate.WaitAsync(cancellationToken);
-        try
-        {
-            var artifacts = await _mlAnalyticsService.GenerateSuiteArtifactsAsync(
-                analytics, embeddings, forecast, cancellationToken);
-
-            var exportPath = await _mlAnalyticsService.ExportArtifactsAsync(
-                artifacts, _stateRootPath, cancellationToken);
-
-            await _gate.WaitAsync(cancellationToken);
-            try
-            {
-                _lastMLArtifactExportPath = exportPath;
-            }
-            finally
-            {
-                _gate.Release();
-            }
-
-            return artifacts;
-        }
-        finally
-        {
-            _mlGate.Release();
-        }
-    }
+    // TODO(strip-down): Remove _mlGate and all RunMLEmbeddingsAsync / RunFullMLPipelineAsync / ExportSuiteArtifactsAsync
+    //                   after FoundryOrchestrator cleanup PR.
+    //
+    // private async Task<MLEmbeddingsResult> RunMLEmbeddingsAsync(...) { ... }
+    // private async Task<object> RunFullMLPipelineAsync(...) { ... }
+    // private async Task<SuiteMLArtifactBundle> ExportSuiteArtifactsAsync(...) { ... }
 
     // --- Knowledge (delegated) ---
 
@@ -534,29 +361,30 @@ public sealed class FoundryOrchestrator
             stepResults.Add(new DailyRunStepResult { Step = "RefreshState", Success = false, Error = ex.Message });
         }
 
+        // TODO(strip-down): Remove Step 2 (MLPipeline) and Step 3 (ExportArtifacts) after FoundryOrchestrator cleanup PR
         // Step 2: Run ML pipeline
-        try
-        {
-            await RunFullMLPipelineAsync(cancellationToken);
-            stepResults.Add(new DailyRunStepResult { Step = "MLPipeline", Success = true });
-        }
-        catch (Exception ex)
-        {
-            stepResults.Add(new DailyRunStepResult { Step = "MLPipeline", Success = false, Error = ex.Message });
-        }
+        // try
+        // {
+        //     await RunFullMLPipelineAsync(cancellationToken);
+        //     stepResults.Add(new DailyRunStepResult { Step = "MLPipeline", Success = true });
+        // }
+        // catch (Exception ex)
+        // {
+        //     stepResults.Add(new DailyRunStepResult { Step = "MLPipeline", Success = false, Error = ex.Message });
+        // }
 
         // Step 3: Export Suite artifacts
-        try
-        {
-            await ExportSuiteArtifactsAsync(cancellationToken);
-            stepResults.Add(new DailyRunStepResult { Step = "ExportArtifacts", Success = true });
-        }
-        catch (Exception ex)
-        {
-            stepResults.Add(new DailyRunStepResult { Step = "ExportArtifacts", Success = false, Error = ex.Message });
-        }
+        // try
+        // {
+        //     await ExportSuiteArtifactsAsync(cancellationToken);
+        //     stepResults.Add(new DailyRunStepResult { Step = "ExportArtifacts", Success = true });
+        // }
+        // catch (Exception ex)
+        // {
+        //     stepResults.Add(new DailyRunStepResult { Step = "ExportArtifacts", Success = false, Error = ex.Message });
+        // }
 
-        // Step 4: Knowledge indexing
+        // Step 2: Knowledge indexing
         try
         {
             await RunKnowledgeIndexAsync(cancellationToken);

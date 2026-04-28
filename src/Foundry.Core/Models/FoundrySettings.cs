@@ -11,23 +11,11 @@ public sealed class FoundrySettings
         "http://127.0.0.1:5000/api/runtime/status";
     public string OllamaEndpoint { get; init; } = "http://127.0.0.1:11434";
     public string MLModel { get; init; } = "qwen3:8b";
-    public bool EnableMLPipeline { get; init; }
-    public string MLArtifactExportPath { get; init; } = string.Empty;
     public int JobRetentionDays { get; init; } = 30;
     public string KnowledgeLibraryPath { get; init; } = string.Empty;
     public string StateRootPath { get; init; } = string.Empty;
     public IReadOnlyList<string> AdditionalKnowledgePaths { get; init; } = Array.Empty<string>();
     public string? DiscordBotToken { get; init; }
-
-    public string ResolveMLArtifactExportPath(string baseDirectory)
-    {
-        if (!string.IsNullOrWhiteSpace(MLArtifactExportPath))
-        {
-            return Path.GetFullPath(MLArtifactExportPath);
-        }
-
-        return Path.Combine(ResolveStateRootPath(baseDirectory), "ml-artifacts");
-    }
 
     public string ResolveKnowledgeLibraryPath(string baseDirectory)
     {
