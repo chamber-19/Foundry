@@ -1,6 +1,6 @@
 # Phases 3–9 Roadmap
 
-> **Purpose:** A single document showing every phase of work for Foundry repo from Phase 3 onward, broken into PRs that can be executed one at a time. Phases 1–2 are complete. This document covers Phase 3 (already implemented) through Phase 9 (future).
+> **Historical archive:** this document describes the ML-pipeline build-out roadmap (Phases 3–9) that predates the chamber-19 transfer and cleanup pass 1. All phases listed here targeted the old ML scoring architecture that has since been removed. Use [README.md](../README.md) for current scope and [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) for contributor rules.
 
 ---
 

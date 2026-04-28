@@ -1,6 +1,6 @@
 # Library Decisions
 
-> **Purpose:** This document explains why each external library was chosen, what problem it solves, what it replaces in the codebase, and how to use it correctly. AI agents and human contributors should consult this before writing new code to avoid hand-rolling solutions that a chosen library already handles.
+> **Historical archive:** this document covers library choices made during the ML-pipeline build-out (phases 1–9) that predates the chamber-19 transfer. Entries for TensorFlow.NET, TorchSharp, ONNX Runtime, ML.NET, and scikit-learn are no longer applicable — those dependencies were removed in cleanup pass 1. Entries for LiteDB, Polly, Serilog, OllamaSharp, and AngleSharp remain relevant. New library decisions should be added here by the contributor who adds the dependency.
 
 ---
 

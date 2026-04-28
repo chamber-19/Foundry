@@ -1,6 +1,6 @@
 # Refactor Pressure Notes
 
-> **Purpose:** Track areas of the codebase under known refactor pressure, document the technical debt they represent, and provide prioritized guidance for future cleanup.
+> **Historical archive:** this document describes technical debt items from the ML-pipeline era (phases 1–9) that predates the chamber-19 transfer and cleanup pass 1. Many of the pressure areas listed here (`MLAnalyticsService`, `OnnxMLEngine`, `MLResultStore`, etc.) were removed in cleanup pass 1. Items that remain relevant to the broker, job store, or knowledge stack are tracked in new issues. Use [README.md](../README.md) for current scope.
 
 ---
 

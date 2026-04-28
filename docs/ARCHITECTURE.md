@@ -1,6 +1,6 @@
 # Foundry — Architecture Plan
 
-> **Note:** This document was carried over from the original DailyDesk/Office repository. References to chat agents, WPF desktop UI, operator memory, and research features have been removed. Foundry is a standalone ML scoring and reasoning pipeline.
+> **Historical archive:** this document describes the Foundry ML-pipeline build-out (Phases 1–9) that predates the chamber-19 transfer and cleanup pass 1. The ML scoring pipeline, training stores, and agent desk scaffolding described here have been removed. Use [README.md](../README.md) for current architecture guidance and [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) for contributor rules.
 
 > **Goal:** Provide reliable ML pipeline execution, knowledge indexing, job scheduling, and health monitoring via an ASP.NET Core broker API. All operator interaction happens through a Discord bot.
 

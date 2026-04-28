@@ -1,6 +1,6 @@
 # Foundry — Coding Conventions
 
-> **Purpose:** Establish patterns that AI agents and contributors must follow when writing code in this repository. Foundry is a standalone ML pipeline — there is no desktop UI, chat agent system, or research service.
+> **Purpose:** Establish patterns that agents and contributors must follow when writing code in this repository. Foundry is an internal agent broker for the chamber-19 family — there is no desktop UI, ML training pipeline, or scoring engine.
 
 ---
 
@@ -101,27 +101,20 @@ catch (Exception ex)
 
 ## Project Structure
 
-```
+```text
 Foundry/
 ├── src/
 │   ├── Foundry.Core/         # Shared class library (net10.0, no Windows dependency)
 │   │   ├── Models/             # Shared data models (Foundry.Models namespace)
-│   │   └── Services/           # All services: coordinators, stores, ML engines, external clients
+│   │   └── Services/           # All services: coordinators, stores, external clients
 │   └── Foundry.Broker/       # ASP.NET Core minimal API (localhost broker)
 │       ├── Endpoints/          # IEndpointRouteBuilder extension classes + validators (one file per domain group)
 │       └── Program.cs          # Infrastructure setup only (DI, middleware, hosted services)
 ├── tests/
 │   └── Foundry.Core.Tests/   # xUnit tests
-├── scripts/                  # Python ML scripts, PowerShell automation, RAG pipeline, scoring engine
-│   ├── ml/                   # ML suite artifacts, batch scripts
-│   ├── rag/                  # RAG pipeline scripts
-│   ├── scoring/              # Scoring engine and preprocessor
-│   ├── automation/           # Auto-review and CI scripts
-│   └── commands/             # Discord command helpers
 ├── bot/                      # Discord bot (Python, discord.py) — sole operator interface
 ├── docs/                     # Architecture docs, library decisions, conventions
-├── schemas/                  # Frozen feature schemas (do not modify)
-└── evals/                    # Evaluation datasets
+└── evals/                    # Agent evaluation datasets and golden sets
 ```
 
 ### Where to Put New Code
@@ -202,18 +195,16 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, FoundryOrche
 
 ## Python Script Conventions
 
-- Scripts live in `scripts/` subdirectories (`scripts/ml/`, `scripts/rag/`, `scripts/scoring/`, etc.).
 - Called via `ProcessRunner.RunAsync("python", scriptPath + " --input " + inputFile)`.
 - Input: JSON file path passed as `--input` argument.
 - Output: JSON written to stdout.
-- Error: Written to stderr, captured by ProcessRunner.
+- Error: Written to stderr, captured by `ProcessRunner`.
 - Exit code: 0 = success, non-zero = failure.
-- All scripts must have heuristic fallback when ML libraries are not installed.
-- Do not add new Python dependencies without updating the ML setup instructions in README.md.
+- Do not add new Python dependencies without updating the Prerequisites section in `README.md`.
 
 ---
 
-## Resilience Conventions (Phase 2+)
+## Resilience conventions
 
 - Every external HTTP call wraps in a named Polly `ResiliencePipeline`.
 - Every subprocess call wraps in a named Polly `ResiliencePipeline`.
@@ -224,15 +215,14 @@ app.MapPost("/api/{resource}/{action}", async (RequestType request, FoundryOrche
 
 ---
 
-## Persistence Conventions (Phase 2+)
+## Persistence conventions
 
 - Single database file: `foundry.db` in the state root directory.
 - One `LiteDatabase` instance per application lifetime (thread-safe).
-- Collection naming: `snake_case` (e.g., `training_attempts`, `session_state`, `jobs`).
+- Collection naming: `snake_case` (e.g., `jobs`, `knowledge_index`, `job_schedules`).
 - Index fields used in queries.
 - Upsert for entities with stable IDs. Insert for append-only entities.
 - Enforce max-item limits in store logic, not in the database.
-- Keep JSON export for Dropbox compatibility (periodic export, not primary storage).
 
 ---
 

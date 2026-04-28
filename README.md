@@ -1,32 +1,57 @@
 # Foundry — Agent Broker
 
-> **Status:** Foundry is mid-pivot from an ML scoring pipeline to an internal
-> agent broker for the chamber-19 family. The README reflects the *target*
-> shape; some scaffolding for the old design may remain in-tree pending
-> follow-up cleanup PRs.
+Foundry is the internal **agent broker** for the [chamber-19](https://github.com/chamber-19) tool family. It receives GitHub webhook events and Discord slash commands, routes them to local-LLM agents via [Ollama](https://ollama.com), and posts structured output back to GitHub PRs and Discord channels.
 
-Foundry is a focused agent broker for the chamber-19 tool family. It provides a knowledge/RAG stack for semantic search and document indexing, a Discord bot as the sole operator interface, and an ASP.NET Core broker API with an async job queue.
+It is **not** a public-facing service, not a generic AI platform, and not a replacement for the Tauri apps in the chamber-19 family. It is a focused orchestration layer that lives alongside those apps.
 
-## What Foundry Does
+## Where Foundry fits in the Chamber 19 family
 
-### Knowledge / RAG Stack
-- Qdrant-backed document indexing via Ollama embeddings
-- Semantic search over knowledge documents
-- RAG context building for operator queries
+```text
+Operator (Discord)
+       │  slash commands
+       ▼
+  bot/foundry_bot.py  ──HTTP──▶  Foundry.Broker  (localhost:57420)
+                                       │
+                     ┌─────────────────┼──────────────────┐
+                     ▼                 ▼                  ▼
+               Ollama (LLM)     LiteDB (jobs)      Qdrant (vectors)
+               Foundry.Core     knowledge index    semantic search
+```
+
+The broker receives events, enqueues async jobs, dispatches work to agents, and posts results. Agents are deterministic pre-check → LLM structured extraction → rule-engine verdict pipelines.
+
+For org-wide conventions see [chamber-19/.github](https://github.com/chamber-19/.github).
+
+## What Foundry does
 
 ### Broker API
+
 - ASP.NET Core minimal API on `localhost:57420`
 - Async job queue with LiteDB persistence
 - Job scheduling and workflow templates
-- Health checks
+- Health checks across all subsystems
 
-### Discord Bot
-- Sole operator interface
-- Routes all LLM inference through the broker/Ollama
+### Knowledge / RAG stack
 
-## Project Layout
+- Qdrant-backed document indexing via Ollama embeddings
+- Semantic search over indexed knowledge documents
+- RAG context building for agent and operator queries
 
-```
+### Discord bot
+
+- Sole human-operator interface (`bot/foundry_bot.py`)
+- Routes all LLM inference through the broker and Ollama
+- Background tasks post job completions and health transitions automatically
+
+### Agent layer (in progress)
+
+- `IAgent` contract for deterministic pre-check → LLM → rule-engine pipelines
+- First agent: `dep-reviewer` — triages Dependabot PRs across chamber-19 repos
+- Shadow-mode evaluation before any write actions are enabled
+
+## Project layout
+
+```text
 Foundry/
 ├── src/
 │   ├── Foundry.Core/           # Shared models + services (class library)
@@ -36,27 +61,24 @@ Foundry/
 │       └── Endpoints/          # HTTP endpoint definitions
 ├── tests/
 │   └── Foundry.Core.Tests/     # xUnit tests
-├── scripts/
-│   ├── rag/                    # RAG pipeline (indexer, search, query)
-│   ├── automation/             # PR review, issue scanning, Discord briefs, scheduled tasks
-│   └── commands/               # Operator commands (review, approve, reject, scan, status)
 ├── bot/                        # Discord bot — sole operator interface
-├── evals/                      # Agent evaluation harness (being repurposed)
-├── schemas/                    # Feature schema (frozen)
-├── docs/                       # Architecture, conventions, roadmap
-└── Foundry.sln                 # Solution file
+├── evals/                      # Agent evaluation harness + golden datasets
+├── docs/                       # Architecture, conventions, library decisions
+└── Foundry.sln
 ```
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
-- .NET 10 SDK
-- Python 3.10+ (for RAG scripts)
-- Ollama (for LLM and embedding inference)
-- Qdrant (optional, for vector search)
 
-### Build & Run
-```bash
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Ollama](https://ollama.com) running on `http://127.0.0.1:11434`
+- Python 3.10+ (for the Discord bot)
+- Qdrant (optional — semantic search degrades to keyword search without it)
+
+### Build and run the broker
+
+```text
 dotnet restore Foundry.sln
 dotnet build Foundry.sln
 dotnet run --project src/Foundry.Broker
@@ -64,28 +86,30 @@ dotnet run --project src/Foundry.Broker
 
 The broker starts on `http://127.0.0.1:57420`.
 
-### Run Tests
-```bash
+### Run tests
+
+```text
 dotnet test Foundry.sln
 ```
 
-### Discord Bot
-```bash
+### Run the Discord bot
+
+```text
 cd bot
 pip install -r requirements.txt
 cp bot_config.example.json bot_config.json
-# Edit bot_config.json with your Discord token and channel IDs
+# Edit bot_config.json — add your Discord token and channel IDs (never commit this file)
 python foundry_bot.py
 ```
 
-## Key Endpoints
+## Key endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/health` | Basic health check |
-| `GET` | `/api/health` | Detailed subsystem health |
+| `GET` | `/health` | Basic liveness check |
+| `GET` | `/api/health` | Detailed subsystem health (Ollama, LiteDB, job worker) |
 | `GET` | `/api/state` | Current broker state |
-| `POST` | `/api/ml/index-knowledge` | Index knowledge documents |
+| `POST` | `/api/knowledge/index` | Index knowledge documents |
 | `GET` | `/api/knowledge/index-status` | Knowledge index status |
 | `POST` | `/api/knowledge/search` | Semantic search |
 | `GET` | `/api/jobs` | List recent jobs |
@@ -95,15 +119,22 @@ python foundry_bot.py
 
 ## Configuration
 
-Settings are loaded from `foundry.settings.json` (or `foundry.settings.local.json` for overrides):
+Settings are loaded from `foundry.settings.json`. Local overrides go in `foundry.settings.local.json` (gitignored):
 
 ```json
 {
   "ollamaEndpoint": "http://127.0.0.1:11434",
-  "mlModel": "qwen3:8b",
+  "ollamaModel": "qwen2.5-coder:14b-instruct-q5_K_M",
   "jobRetentionDays": 30,
   "knowledgeLibraryPath": "",
-  "stateRootPath": "",
-  "discordBotToken": ""
+  "stateRootPath": ""
 }
 ```
+
+**Secrets** (`discordBotToken`, `githubAppPrivateKey`) must go in `foundry.settings.local.json` or environment variables — never in the committed settings file.
+
+## Contributing and agent development
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for build commands and contributor guidance.
+
+Agent contributors must read [`.github/copilot-instructions.md`](./.github/copilot-instructions.md) — it describes the deterministic pre-check → LLM → rule-engine pattern every agent must follow, eval requirements, and local-LLM constraints.
