@@ -56,6 +56,51 @@ public sealed class DependencyMonitorTests
     }
 
     [Fact]
+    public void DepReviewer_FirstParty_Actions_Major_Is_Info()
+    {
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "actions/checkout",
+            Ecosystem = "github_actions",
+            UpdateType = "major",
+        });
+
+        Assert.Equal(DependencyNotificationCategory.Info, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_ThirdParty_Actions_Major_Is_NeedsReview()
+    {
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/desktop-toolkit",
+            PackageName = "softprops/action-gh-release",
+            Ecosystem = "github_actions",
+            UpdateType = "major",
+        });
+
+        Assert.Equal(DependencyNotificationCategory.NeedsReview, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_Pip_Major_Is_Risky()
+    {
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/transmittal-builder",
+            PackageName = "some-library",
+            Ecosystem = "pip",
+            UpdateType = "major",
+        });
+
+        Assert.Equal(DependencyNotificationCategory.Risky, outcome.Category);
+    }
+
+    [Fact]
     public void NotificationStore_Dedupes_And_Redelivers_Updates()
     {
         using var scope = new TempDatabaseScope();

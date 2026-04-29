@@ -7,12 +7,59 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Foundry.Core.Agents;
 
+/// <summary>
+/// Reviews Dependabot pull requests and security alerts and produces a
+/// structured verdict for operator notification.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Verdict categories map to a binary SAFE / HOLD decision as follows:
+/// </para>
+/// <list type="table">
+///   <listheader>
+///     <term>Category</term>
+///     <description>Verdict and meaning</description>
+///   </listheader>
+///   <item>
+///     <term><c>info</c></term>
+///     <description>SAFE — patch or low-severity alert. Notify; no merge gate.</description>
+///   </item>
+///   <item>
+///     <term><c>needs-review</c></term>
+///     <description>SAFE — minor update or unclassified bump. Operator nudge; not a hard block.</description>
+///   </item>
+///   <item>
+///     <term><c>risky</c></term>
+///     <description>HOLD — major update or high/critical alert. Must not merge without focused human review.</description>
+///   </item>
+///   <item>
+///     <term><c>blocked</c></term>
+///     <description>HOLD — toolkit pin or strip-list package. Must not merge; requires a deliberate manual-review PR.</description>
+///   </item>
+/// </list>
+/// <para>
+/// <c>needs-review</c> maps to SAFE rather than HOLD by design: the category
+/// directs the operator to take a look before merging, but does not gate the
+/// merge. The hard gate is at <c>risky</c>. All minor bumps in the labeled
+/// eval set are SAFE; mapping <c>needs-review</c> to HOLD would produce
+/// false blocks on the most common Dependabot event class.
+/// </para>
+/// <para>
+/// Labeled eval data for this agent lives in
+/// <c>foundry-evals/dep-reviewer/historical-prs.csv</c>. The
+/// <c>verdict_source</c> column tracks provenance: <c>proposed</c> for
+/// human-labeled rows, <c>corrected</c> for rows revised after review.
+/// </para>
+/// </remarks>
 public sealed partial class DepReviewerAgent : IAgent
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
+
+    private static readonly HashSet<string> FirstPartyActionOrgs =
+        new(StringComparer.OrdinalIgnoreCase) { "actions" };
 
     private readonly IModelProvider? _modelProvider;
     private readonly string _ollamaModel;
@@ -153,6 +200,11 @@ public sealed partial class DepReviewerAgent : IAgent
             return SeverityOutcome(payload);
         }
 
+        if (string.Equals(payload.Ecosystem, "github_actions", StringComparison.OrdinalIgnoreCase))
+        {
+            return GitHubActionsOutcome(payload, packageName);
+        }
+
         return payload.UpdateType.ToLowerInvariant() switch
         {
             "major" => new DependencyReviewOutcome
@@ -262,6 +314,44 @@ public sealed partial class DepReviewerAgent : IAgent
             Ecosystem = payload.Ecosystem,
             UpdateType = payload.UpdateType,
         };
+    }
+
+    private static DependencyReviewOutcome GitHubActionsOutcome(DependencyReviewPayload payload, string packageName)
+    {
+        if (!string.Equals(payload.UpdateType, "major", StringComparison.OrdinalIgnoreCase))
+        {
+            return new DependencyReviewOutcome
+            {
+                Category = DependencyNotificationCategory.Info,
+                Reason = "github_actions patch or minor update.",
+                Summary = BuildSummary(payload),
+                PackageName = packageName,
+                Ecosystem = payload.Ecosystem,
+                UpdateType = payload.UpdateType,
+            };
+        }
+
+        var slashIdx = packageName.IndexOf('/');
+        var org = slashIdx >= 0 ? packageName[..slashIdx] : packageName;
+        return FirstPartyActionOrgs.Contains(org)
+            ? new DependencyReviewOutcome
+            {
+                Category = DependencyNotificationCategory.Info,
+                Reason = "first-party GitHub Action major update; typically safe.",
+                Summary = BuildSummary(payload),
+                PackageName = packageName,
+                Ecosystem = payload.Ecosystem,
+                UpdateType = payload.UpdateType,
+            }
+            : new DependencyReviewOutcome
+            {
+                Category = DependencyNotificationCategory.NeedsReview,
+                Reason = "third-party GitHub Action major update; review input changes before merging.",
+                Summary = BuildSummary(payload),
+                PackageName = packageName,
+                Ecosystem = payload.Ecosystem,
+                UpdateType = payload.UpdateType,
+            };
     }
 
     private static bool IsToolkitPackage(string packageName) =>
