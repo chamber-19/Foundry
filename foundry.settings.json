@@ -18,5 +18,12 @@
   "notificationChannels": {
     "discordAlerts": "alerts"
   },
-  "discordBotToken": ""
+  "discordBotToken": "",
+  "stripListPackages": [
+    "Microsoft.ML.OnnxRuntime",
+    "Microsoft.ML",
+    "TorchSharp",
+    "TensorFlow.NET",
+    "ONNX"
+  ]
 }

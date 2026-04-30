@@ -56,6 +56,54 @@ public sealed class DependencyMonitorTests
     }
 
     [Fact]
+    public void DepReviewer_StripList_Minor_Is_Blocked()
+    {
+        var stripList = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Microsoft.ML.OnnxRuntime" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "Microsoft.ML.OnnxRuntime",
+            Ecosystem = "nuget",
+            UpdateType = "minor",
+        }, stripList);
+
+        Assert.Equal(DependencyNotificationCategory.Blocked, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_StripList_Major_Is_Blocked()
+    {
+        var stripList = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Microsoft.ML.OnnxRuntime" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "Microsoft.ML.OnnxRuntime",
+            Ecosystem = "nuget",
+            UpdateType = "major",
+        }, stripList);
+
+        Assert.Equal(DependencyNotificationCategory.Blocked, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_NonStripList_Package_Is_Not_Blocked()
+    {
+        var stripList = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Microsoft.ML.OnnxRuntime" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "Microsoft.AspNetCore.Mvc.Testing",
+            Ecosystem = "nuget",
+            UpdateType = "minor",
+        }, stripList);
+
+        Assert.NotEqual(DependencyNotificationCategory.Blocked, outcome.Category);
+    }
+
+    [Fact]
     public void DepReviewer_FirstParty_Actions_Major_Is_Info()
     {
         var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload

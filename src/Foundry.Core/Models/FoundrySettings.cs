@@ -18,6 +18,7 @@ public sealed class FoundrySettings
     public IReadOnlyList<string> AdditionalKnowledgePaths { get; init; } = Array.Empty<string>();
     public FoundryNotificationChannels NotificationChannels { get; init; } = new();
     public string? DiscordBotToken { get; init; }
+    public List<string> StripListPackages { get; init; } = new();
 
     public string ResolveKnowledgeLibraryPath(string baseDirectory)
     {

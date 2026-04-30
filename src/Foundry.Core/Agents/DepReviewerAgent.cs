@@ -64,15 +64,20 @@ public sealed partial class DepReviewerAgent : IAgent
     private readonly IModelProvider? _modelProvider;
     private readonly string _ollamaModel;
     private readonly ILogger<DepReviewerAgent> _logger;
+    private readonly HashSet<string> _stripListPackages;
 
     public DepReviewerAgent(
         IModelProvider? modelProvider = null,
         string? ollamaModel = null,
-        ILogger<DepReviewerAgent>? logger = null)
+        ILogger<DepReviewerAgent>? logger = null,
+        IReadOnlyList<string>? stripListPackages = null)
     {
         _modelProvider = modelProvider;
         _ollamaModel = ollamaModel ?? string.Empty;
         _logger = logger ?? NullLogger<DepReviewerAgent>.Instance;
+        _stripListPackages = stripListPackages is not null
+            ? new HashSet<string>(stripListPackages, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public string Name => "dep-reviewer";
@@ -92,7 +97,7 @@ public sealed partial class DepReviewerAgent : IAgent
         }
 
         payload = NormalizePayload(payload);
-        var deterministic = BuildRuleBasedOutcome(payload);
+        var deterministic = BuildRuleBasedOutcome(payload, _stripListPackages);
         var summary = deterministic.Summary;
         var ollamaUsed = false;
 
@@ -178,9 +183,23 @@ public sealed partial class DepReviewerAgent : IAgent
         };
     }
 
-    public static DependencyReviewOutcome BuildRuleBasedOutcome(DependencyReviewPayload payload)
+    public static DependencyReviewOutcome BuildRuleBasedOutcome(DependencyReviewPayload payload, HashSet<string>? stripListPackages = null)
     {
         var packageName = payload.PackageName.Trim();
+        if (IsOnStripList(packageName, stripListPackages))
+        {
+            return new DependencyReviewOutcome
+            {
+                Category = DependencyNotificationCategory.Blocked,
+                Reason = "Package is on the Foundry strip-list; should not be added to the dependency graph.",
+                Summary = BuildSummary(payload),
+                PackageName = packageName,
+                Ecosystem = payload.Ecosystem,
+                UpdateType = payload.UpdateType,
+                OllamaUsed = false,
+            };
+        }
+
         if (IsToolkitPackage(packageName))
         {
             return new DependencyReviewOutcome
@@ -353,6 +372,9 @@ public sealed partial class DepReviewerAgent : IAgent
                 UpdateType = payload.UpdateType,
             };
     }
+
+    private static bool IsOnStripList(string packageName, HashSet<string>? stripList) =>
+        stripList?.Contains(packageName) == true;
 
     private static bool IsToolkitPackage(string packageName) =>
         string.Equals(packageName, "@chamber-19/desktop-toolkit", StringComparison.OrdinalIgnoreCase) ||
