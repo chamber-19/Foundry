@@ -230,6 +230,38 @@ public sealed class DependencyMonitorTests
     }
 
     [Fact]
+    public async Task DepReviewer_Retries_On_Schema_Failure_And_Uses_Second_Result()
+    {
+        const string expectedSummary = "Patch update for OllamaSharp looks safe; CI green.";
+        var fakeProvider = new NullThenSuccessModelProvider(expectedSummary);
+        var agent = new DepReviewerAgent(fakeProvider, "local-model");
+        var payload = new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "OllamaSharp",
+            Ecosystem = "nuget",
+            UpdateType = "patch",
+        };
+        var handoff = new AgentHandoff
+        {
+            Source = "github",
+            EventType = "dependabot.pull_request",
+            Payload = JsonSerializer.SerializeToElement(payload),
+        };
+
+        var result = await agent.ExecuteAsync(handoff, CancellationToken.None);
+        var outcome = result.Data!.Value.Deserialize<DependencyReviewOutcome>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.True(result.Success);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.OllamaUsed);
+        Assert.Equal(expectedSummary, outcome.Summary);
+        Assert.Equal(2, fakeProvider.CallCount);
+    }
+
+    [Fact]
     public async Task DependencyMonitor_Rejects_Invalid_Agent_Category()
     {
         using var scope = new TempDatabaseScope();
@@ -344,6 +376,48 @@ public sealed class DependencyMonitorTests
 
         public Task<bool> PingAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
+    }
+
+    private sealed class NullThenSuccessModelProvider : IModelProvider
+    {
+        private readonly string _summary;
+        private int _callCount;
+
+        public NullThenSuccessModelProvider(string summary) => _summary = summary;
+
+        public int CallCount => _callCount;
+
+        public string ProviderId => "test";
+        public string ProviderLabel => "Test";
+
+        public Task<IReadOnlyList<string>> GetInstalledModelsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<string> GenerateAsync(
+            string model,
+            string systemPrompt,
+            string userPrompt,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(string.Empty);
+
+        public Task<T?> GenerateJsonAsync<T>(
+            string model,
+            string systemPrompt,
+            string userPrompt,
+            CancellationToken cancellationToken = default)
+        {
+            var call = Interlocked.Increment(ref _callCount);
+            if (call == 1)
+                return Task.FromResult<T?>(default);
+
+            var json = $"{{\"summary\":\"{_summary}\"}}";
+            var result = JsonSerializer.Deserialize<T>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return Task.FromResult(result);
+        }
+
+        public Task<bool> PingAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class TempDatabaseScope : IDisposable

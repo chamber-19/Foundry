@@ -103,13 +103,25 @@ public sealed partial class DepReviewerAgent : IAgent
 
         if (_modelProvider is not null && !string.IsNullOrWhiteSpace(_ollamaModel))
         {
+            const string systemPrompt = "Summarize dependency changes for an operator. Return only JSON with a concise summary field. Do not decide risk.";
+            var userPrompt = JsonSerializer.Serialize(payload, JsonOptions);
+
             try
             {
                 var ollamaSummary = await _modelProvider.GenerateJsonAsync<OllamaDependencySummary>(
-                    _ollamaModel,
-                    "Summarize dependency changes for an operator. Return only JSON with a concise summary field. Do not decide risk.",
-                    JsonSerializer.Serialize(payload, JsonOptions),
-                    ct).ConfigureAwait(false);
+                    _ollamaModel, systemPrompt, userPrompt, ct).ConfigureAwait(false);
+
+                if (ollamaSummary is null)
+                {
+                    _logger.LogInformation("Ollama dependency summary returned null on first attempt; retrying.");
+                    ollamaSummary = await _modelProvider.GenerateJsonAsync<OllamaDependencySummary>(
+                        _ollamaModel, systemPrompt, userPrompt, ct).ConfigureAwait(false);
+
+                    if (ollamaSummary is null)
+                    {
+                        _logger.LogInformation("Ollama dependency summary returned null on retry; using deterministic summary.");
+                    }
+                }
 
                 if (!string.IsNullOrWhiteSpace(ollamaSummary?.Summary))
                 {
