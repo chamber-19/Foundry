@@ -11,24 +11,6 @@ public sealed class FoundryDatabase : IDisposable
     private readonly LiteDatabase _db;
     private bool _disposed;
 
-    /// <summary>
-    /// Pre-warms BsonMapper.Global for every entity type used by this database.
-    /// LiteDB's internal entity-mapper cache is lazily populated and has a race
-    /// condition when multiple threads request the same type simultaneously for
-    /// the first time.  The CLR guarantees this static constructor runs exactly
-    /// once before any instance is constructed, so all mappers are fully built
-    /// before any concurrent code can call EnsureIndex or GetCollection.
-    /// </summary>
-    static FoundryDatabase()
-    {
-        BsonMapper.Global.Entity<DailyRunTemplate>();
-        BsonMapper.Global.Entity<FoundryJob>();
-        BsonMapper.Global.Entity<JobSchedule>();
-        BsonMapper.Global.Entity<WorkflowTemplate>();
-        BsonMapper.Global.Entity<IndexedDocumentRecord>();
-        BsonMapper.Global.Entity<FoundryNotification>();
-    }
-
     public FoundryDatabase(string stateRootPath)
     {
         var root = string.IsNullOrWhiteSpace(stateRootPath)
@@ -40,7 +22,21 @@ public sealed class FoundryDatabase : IDisposable
         Directory.CreateDirectory(root);
 
         var dbPath = Path.Combine(root, "foundry.db");
-        _db = new LiteDatabase($"Filename={dbPath};Connection=shared");
+
+        // Use a fresh BsonMapper per instance so that concurrent test runs and
+        // multiple FoundryDatabase lifetimes never share global mapper state.
+        // BsonMapper.Global has a lazy-build race when multiple instances are
+        // constructed concurrently; per-instance mappers are fully initialised
+        // here before any collection access or EnsureIndex call can occur.
+        var mapper = new BsonMapper();
+        mapper.Entity<DailyRunTemplate>();
+        mapper.Entity<FoundryJob>();
+        mapper.Entity<JobSchedule>();
+        mapper.Entity<WorkflowTemplate>();
+        mapper.Entity<IndexedDocumentRecord>();
+        mapper.Entity<FoundryNotification>();
+
+        _db = new LiteDatabase($"Filename={dbPath};Connection=shared", mapper);
 
         EnsureIndexes();
     }
