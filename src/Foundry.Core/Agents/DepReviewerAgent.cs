@@ -67,7 +67,7 @@ public sealed partial class DepReviewerAgent : IAgent
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogInformation(ex, "Ollama dependency summary failed; using deterministic summary.");
+                _logger.LogWarning(ex, "Ollama dependency summary failed; using deterministic summary.");
             }
         }
 

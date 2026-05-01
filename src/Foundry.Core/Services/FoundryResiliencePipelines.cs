@@ -24,7 +24,7 @@ public static class FoundryResiliencePipelines
                 Delay = TimeSpan.FromSeconds(2),
                 BackoffType = DelayBackoffType.Exponential,
                 ShouldHandle = new PredicateBuilder()
-                    .Handle<HttpRequestException>()
+                    .Handle<HttpRequestException>(ex => ex.StatusCode is null || (int)ex.StatusCode >= 500)
                     .Handle<TaskCanceledException>(),
             })
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions
@@ -34,7 +34,7 @@ public static class FoundryResiliencePipelines
                 MinimumThroughput = 5,
                 BreakDuration = TimeSpan.FromSeconds(30),
                 ShouldHandle = new PredicateBuilder()
-                    .Handle<HttpRequestException>()
+                    .Handle<HttpRequestException>(ex => ex.StatusCode is null || (int)ex.StatusCode >= 500)
                     .Handle<TaskCanceledException>(),
             })
             .AddTimeout(TimeSpan.FromSeconds(90))
