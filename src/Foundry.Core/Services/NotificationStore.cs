@@ -95,6 +95,26 @@ public sealed class NotificationStore
         return _database.Notifications.FindById(new BsonValue(id));
     }
 
+    public IReadOnlyList<FoundryNotification> GetPending() =>
+        _database.Notifications
+            .Query()
+            .Where(x => x.DeliveredAt == null && x.DeliveryAttempts < 3)
+            .OrderBy(x => x.CreatedAt)
+            .ToList();
+
+    public FoundryNotification? IncrementDeliveryAttempts(string id)
+    {
+        var notification = GetById(id);
+        if (notification is null)
+        {
+            return null;
+        }
+
+        notification.DeliveryAttempts++;
+        _database.Notifications.Update(notification);
+        return notification;
+    }
+
     public FoundryNotification? MarkDelivered(string id, string? deliveredTo = null)
     {
         var notification = GetById(id);

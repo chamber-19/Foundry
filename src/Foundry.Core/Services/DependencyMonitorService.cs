@@ -220,6 +220,8 @@ public sealed class DependencyMonitorService
             Source = "dependabot.pull_request",
             SourceUrl = pullRequest.HtmlUrl,
             Repository = pullRequest.Repository,
+            PackageName = outcome.PackageName,
+            Ecosystem = outcome.Ecosystem,
             EventUpdatedAt = pullRequest.UpdatedAt == default ? DateTimeOffset.UtcNow : pullRequest.UpdatedAt,
         };
     }
@@ -252,6 +254,8 @@ public sealed class DependencyMonitorService
             Source = "dependabot.alert",
             SourceUrl = alert.HtmlUrl,
             Repository = alert.Repository,
+            PackageName = alert.PackageName,
+            Ecosystem = alert.Ecosystem,
             EventUpdatedAt = alert.UpdatedAt == default ? DateTimeOffset.UtcNow : alert.UpdatedAt,
         };
     }

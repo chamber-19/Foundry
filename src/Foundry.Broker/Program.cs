@@ -51,6 +51,7 @@ builder.Services.AddHostedService<FoundryJobWorker>();
 builder.Services.AddHostedService<JobRetentionWorker>();
 builder.Services.AddHostedService<JobSchedulerWorker>();
 builder.Services.AddHostedService<DependencyMonitorWorker>();
+builder.Services.AddHostedService<DiscordDeliveryWorker>();
 
 var app = builder.Build();
 var logger = app.Logger;

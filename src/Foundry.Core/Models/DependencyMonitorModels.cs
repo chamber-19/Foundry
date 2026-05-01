@@ -27,6 +27,9 @@ public sealed class FoundryNotification
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? DeliveredAt { get; set; }
     public string? DeliveredTo { get; set; }
+    public string PackageName { get; set; } = string.Empty;
+    public string Ecosystem { get; set; } = string.Empty;
+    public int DeliveryAttempts { get; set; }
 }
 
 public sealed class DependencyMonitorResult

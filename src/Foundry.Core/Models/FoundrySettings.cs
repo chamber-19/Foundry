@@ -20,6 +20,7 @@ public sealed class FoundrySettings
     public string? DiscordBotToken { get; init; }
     public List<string> StripListPackages { get; init; } = new();
     public List<string> DevToolingPackages { get; init; } = new();
+    public string? DiscordWebhookUrl { get; init; }
 
     public string ResolveKnowledgeLibraryPath(string baseDirectory)
     {

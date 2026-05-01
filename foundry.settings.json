@@ -19,6 +19,7 @@
     "discordAlerts": "alerts"
   },
   "discordBotToken": "",
+  "discordWebhookUrl": "",
   "stripListPackages": [
     "Microsoft.ML.OnnxRuntime",
     "Microsoft.ML",

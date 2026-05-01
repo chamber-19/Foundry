@@ -138,6 +138,9 @@ public sealed partial class FoundryOrchestrator
     /// <summary>Dependency poll interval for the hosted monitor worker.</summary>
     public TimeSpan DependencyPollingInterval => _dependencyMonitorService.PollingInterval;
 
+    /// <summary>Discord webhook URL, or null/empty if delivery is disabled.</summary>
+    public string? DiscordWebhookUrl => _settings.DiscordWebhookUrl;
+
     /// <summary>Notification persistence store.</summary>
     public NotificationStore Notifications => _notificationStore;
 
