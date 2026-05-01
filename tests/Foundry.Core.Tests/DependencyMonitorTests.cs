@@ -42,6 +42,68 @@ public sealed class DependencyMonitorTests
     }
 
     [Fact]
+    public void DepReviewer_Parses_ConventionalCommit_Prefix_Title()
+    {
+        var payload = DepReviewerAgent.NormalizePayload(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Drawing-List-Manager",
+            Title = "chore(deps): bump @tauri-apps/api from 2.10.1 to 2.11.0 in /frontend",
+        });
+
+        Assert.Equal("@tauri-apps/api", payload.PackageName);
+        Assert.Equal("2.10.1", payload.CurrentVersion);
+        Assert.Equal("2.11.0", payload.TargetVersion);
+        Assert.Equal("minor", payload.UpdateType);
+    }
+
+    [Fact]
+    public void DepReviewer_Classifies_TauriApi_Minor_Update_As_NeedsReview()
+    {
+        var payload = DepReviewerAgent.NormalizePayload(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Drawing-List-Manager",
+            Title = "chore(deps): bump @tauri-apps/api from 2.10.1 to 2.11.0 in /frontend",
+        });
+
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(payload);
+
+        Assert.Equal("minor", payload.UpdateType);
+        Assert.Equal(DependencyNotificationCategory.NeedsReview, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_Classifies_TauriCli_DevDeps_Minor_Update_As_NeedsReview()
+    {
+        var payload = DepReviewerAgent.NormalizePayload(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Drawing-List-Manager",
+            Title = "chore(deps-dev): bump @tauri-apps/cli from 2.10.1 to 2.11.0 in /frontend",
+        });
+
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(payload);
+
+        Assert.Equal("@tauri-apps/cli", payload.PackageName);
+        Assert.Equal("minor", payload.UpdateType);
+        Assert.Equal(DependencyNotificationCategory.NeedsReview, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_Infers_Npm_Ecosystem_For_Scoped_Package()
+    {
+        var payload = DepReviewerAgent.NormalizePayload(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Drawing-List-Manager",
+            Title = "chore(deps): bump @tauri-apps/api from 2.10.1 to 2.11.0 in /frontend",
+        });
+
+        Assert.Equal("npm", payload.Ecosystem);
+    }
+
+    [Fact]
     public void DepReviewer_Maps_High_Alert_To_Risky()
     {
         var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload

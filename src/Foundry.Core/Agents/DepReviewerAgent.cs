@@ -115,12 +115,18 @@ public sealed partial class DepReviewerAgent : IAgent
             updateType = ClassifySemVerUpdate(currentVersion, targetVersion);
         }
 
+        var ecosystem = payload.Ecosystem.Trim();
+        if (string.IsNullOrWhiteSpace(ecosystem))
+        {
+            ecosystem = InferEcosystem(packageName);
+        }
+
         return new DependencyReviewPayload
         {
             Kind = payload.Kind,
             Repository = payload.Repository,
             PackageName = packageName,
-            Ecosystem = payload.Ecosystem.Trim(),
+            Ecosystem = ecosystem,
             CurrentVersion = currentVersion,
             TargetVersion = targetVersion,
             UpdateType = updateType,
@@ -268,6 +274,19 @@ public sealed partial class DepReviewerAgent : IAgent
         string.Equals(packageName, "@chamber-19/desktop-toolkit", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(packageName, "desktop-toolkit", StringComparison.OrdinalIgnoreCase);
 
+    private static string InferEcosystem(string packageName)
+    {
+        // Scoped npm packages always start with '@'; unscoped npm packages cannot
+        // be distinguished from other ecosystems by name alone, so only scoped
+        // names are inferred here.
+        if (packageName.StartsWith('@'))
+        {
+            return "npm";
+        }
+
+        return string.Empty;
+    }
+
     private static string BuildSummary(DependencyReviewPayload payload)
     {
         var packageName = string.IsNullOrWhiteSpace(payload.PackageName)
@@ -319,7 +338,11 @@ public sealed partial class DepReviewerAgent : IAgent
         return true;
     }
 
-    [GeneratedRegex(@"^Bump\s+(?<package>.+?)\s+from\s+(?<from>\S+)\s+to\s+(?<to>\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    // Matches both plain Dependabot titles ("Bump pkg from X to Y") and the
+    // conventional-commit prefix variant ("chore(deps[-dev]): bump pkg from X to Y in /path").
+    // The scope group [^)]* is intentionally permissive; the conventional-commits
+    // spec does not allow nested parentheses in scope names.
+    [GeneratedRegex(@"^(?:chore\([^)]*\):\s+)?bump\s+(?<package>.+?)\s+from\s+(?<from>\S+)\s+to\s+(?<to>\S+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DependabotBumpRegex();
 
     [GeneratedRegex(@"^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
