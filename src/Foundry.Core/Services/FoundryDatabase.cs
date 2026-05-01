@@ -22,7 +22,21 @@ public sealed class FoundryDatabase : IDisposable
         Directory.CreateDirectory(root);
 
         var dbPath = Path.Combine(root, "foundry.db");
-        _db = new LiteDatabase($"Filename={dbPath};Connection=shared");
+
+        // Use a fresh BsonMapper per instance so that concurrent test runs and
+        // multiple FoundryDatabase lifetimes never share global mapper state.
+        // BsonMapper.Global has a lazy-build race when multiple instances are
+        // constructed concurrently; per-instance mappers are fully initialised
+        // here before any collection access or EnsureIndex call can occur.
+        var mapper = new BsonMapper();
+        mapper.Entity<DailyRunTemplate>();
+        mapper.Entity<FoundryJob>();
+        mapper.Entity<JobSchedule>();
+        mapper.Entity<WorkflowTemplate>();
+        mapper.Entity<IndexedDocumentRecord>();
+        mapper.Entity<FoundryNotification>();
+
+        _db = new LiteDatabase($"Filename={dbPath};Connection=shared", mapper);
 
         EnsureIndexes();
     }

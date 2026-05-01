@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Foundry.Core.Tests;
 
+[Collection("CoordinatorTests")]
 public sealed class DependencyMonitorTests
 {
     [Fact]
