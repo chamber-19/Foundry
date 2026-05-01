@@ -1,0 +1,10 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# C# source and project files use CRLF
+*.cs    text eol=crlf
+*.csproj text eol=crlf
+
+# Config / docs use LF
+*.toml  text eol=lf
+*.md    text eol=lf
