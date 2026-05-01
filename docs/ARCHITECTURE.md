@@ -292,7 +292,7 @@ The WPF client currently calls ML endpoints and waits for the response. With the
 
 ### 6.1–6.3 SK Core + Desk Agents + Multi-Turn Memory
 
-- `OfficeKernelFactory` builds an SK `Kernel` for the local Ollama endpoint (`Microsoft.SemanticKernel` 1.71.0).
+- `OfficeKernelFactory` builds an SK `Kernel` for the local Ollama endpoint (`Microsoft.SemanticKernel` 1.74.0).
 - `DeskAgent` base class wraps SK `ChatCompletionAgent` with system prompt and tool registration.
 - Five desk agents in `Foundry/Services/Agents/`: `ChiefOfStaffAgent`, `EngineeringDeskAgent`, `SuiteContextAgent`, `GrowthOpsAgent`, `MLEngineerAgent`.
 - Agent dispatch in `SendChatAsync` replaces `PromptComposer.ComposeChat()`, with fallback to direct `IModelProvider`.
