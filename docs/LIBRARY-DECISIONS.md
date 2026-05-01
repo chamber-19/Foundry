@@ -602,7 +602,7 @@ All `VectorStoreService` methods catch exceptions and return graceful defaults (
 |---|---|
 | **GitHub** | [microsoft/semantic-kernel](https://github.com/microsoft/semantic-kernel) |
 | **NuGet** | `Microsoft.SemanticKernel` |
-| **Version** | 1.71.0 |
+| **Version** | 1.74.0 |
 | **License** | MIT |
 | **Added to** | `Foundry.Core.csproj` |
 
