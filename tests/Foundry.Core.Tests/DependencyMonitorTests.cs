@@ -149,6 +149,54 @@ public sealed class DependencyMonitorTests
     }
 
     [Fact]
+    public void DepReviewer_DevTooling_Pip_Major_Is_NeedsReview()
+    {
+        var devTooling = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "pytest" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/transmittal-builder",
+            PackageName = "pytest",
+            Ecosystem = "pip",
+            UpdateType = "major",
+        }, devToolingPackages: devTooling);
+
+        Assert.Equal(DependencyNotificationCategory.NeedsReview, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_DevTooling_Nuget_Major_Is_NeedsReview()
+    {
+        var devTooling = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Microsoft.NET.Test.Sdk" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/Foundry",
+            PackageName = "Microsoft.NET.Test.Sdk",
+            Ecosystem = "nuget",
+            UpdateType = "major",
+        }, devToolingPackages: devTooling);
+
+        Assert.Equal(DependencyNotificationCategory.NeedsReview, outcome.Category);
+    }
+
+    [Fact]
+    public void DepReviewer_NonTooling_Pip_Major_With_DevList_Is_Still_Risky()
+    {
+        var devTooling = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "pytest" };
+        var outcome = DepReviewerAgent.BuildRuleBasedOutcome(new DependencyReviewPayload
+        {
+            Kind = "pull-request",
+            Repository = "chamber-19/transmittal-builder",
+            PackageName = "some-library",
+            Ecosystem = "pip",
+            UpdateType = "major",
+        }, devToolingPackages: devTooling);
+
+        Assert.Equal(DependencyNotificationCategory.Risky, outcome.Category);
+    }
+
+    [Fact]
     public void NotificationStore_Dedupes_And_Redelivers_Updates()
     {
         using var scope = new TempDatabaseScope();

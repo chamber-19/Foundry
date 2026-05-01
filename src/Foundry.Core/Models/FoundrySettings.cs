@@ -19,6 +19,7 @@ public sealed class FoundrySettings
     public FoundryNotificationChannels NotificationChannels { get; init; } = new();
     public string? DiscordBotToken { get; init; }
     public List<string> StripListPackages { get; init; } = new();
+    public List<string> DevToolingPackages { get; init; } = new();
 
     public string ResolveKnowledgeLibraryPath(string baseDirectory)
     {

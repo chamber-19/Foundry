@@ -112,7 +112,8 @@ public sealed partial class FoundryOrchestrator
                     _modelProvider,
                     _settings.OllamaChatModel,
                     lf.CreateLogger<DepReviewerAgent>(),
-                    _settings.StripListPackages)
+                    _settings.StripListPackages,
+                    _settings.DevToolingPackages)
             ])
             .ToList();
         _dispatcher = new AgentDispatcher(registeredAgents, lf.CreateLogger<AgentDispatcher>());

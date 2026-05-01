@@ -25,5 +25,14 @@
     "TorchSharp",
     "TensorFlow.NET",
     "ONNX"
+  ],
+  "devToolingPackages": [
+    "pytest",
+    "xunit",
+    "Microsoft.NET.Test.Sdk",
+    "coverlet.collector",
+    "Microsoft.AspNetCore.Mvc.Testing",
+    "png-to-ico",
+    "sharp"
   ]
 }

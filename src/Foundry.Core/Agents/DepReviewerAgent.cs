@@ -65,18 +65,23 @@ public sealed partial class DepReviewerAgent : IAgent
     private readonly string _ollamaModel;
     private readonly ILogger<DepReviewerAgent> _logger;
     private readonly HashSet<string> _stripListPackages;
+    private readonly HashSet<string> _devToolingPackages;
 
     public DepReviewerAgent(
         IModelProvider? modelProvider = null,
         string? ollamaModel = null,
         ILogger<DepReviewerAgent>? logger = null,
-        IReadOnlyList<string>? stripListPackages = null)
+        IReadOnlyList<string>? stripListPackages = null,
+        IReadOnlyList<string>? devToolingPackages = null)
     {
         _modelProvider = modelProvider;
         _ollamaModel = ollamaModel ?? string.Empty;
         _logger = logger ?? NullLogger<DepReviewerAgent>.Instance;
         _stripListPackages = stripListPackages is not null
             ? new HashSet<string>(stripListPackages, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _devToolingPackages = devToolingPackages is not null
+            ? new HashSet<string>(devToolingPackages, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -97,7 +102,7 @@ public sealed partial class DepReviewerAgent : IAgent
         }
 
         payload = NormalizePayload(payload);
-        var deterministic = BuildRuleBasedOutcome(payload, _stripListPackages);
+        var deterministic = BuildRuleBasedOutcome(payload, _stripListPackages, _devToolingPackages);
         var summary = deterministic.Summary;
         var ollamaUsed = false;
 
@@ -195,7 +200,7 @@ public sealed partial class DepReviewerAgent : IAgent
         };
     }
 
-    public static DependencyReviewOutcome BuildRuleBasedOutcome(DependencyReviewPayload payload, HashSet<string>? stripListPackages = null)
+    public static DependencyReviewOutcome BuildRuleBasedOutcome(DependencyReviewPayload payload, HashSet<string>? stripListPackages = null, HashSet<string>? devToolingPackages = null)
     {
         var packageName = payload.PackageName.Trim();
         if (IsOnStripList(packageName, stripListPackages))
@@ -234,6 +239,21 @@ public sealed partial class DepReviewerAgent : IAgent
         if (string.Equals(payload.Ecosystem, "github_actions", StringComparison.OrdinalIgnoreCase))
         {
             return GitHubActionsOutcome(payload, packageName);
+        }
+
+        if (IsDevToolingEcosystem(payload.Ecosystem) &&
+            string.Equals(payload.UpdateType, "major", StringComparison.OrdinalIgnoreCase) &&
+            IsOnDevToolingList(packageName, devToolingPackages))
+        {
+            return new DependencyReviewOutcome
+            {
+                Category = DependencyNotificationCategory.NeedsReview,
+                Reason = "Major update to dev/test/build-time package; CI green is the primary gate.",
+                Summary = BuildSummary(payload),
+                PackageName = packageName,
+                Ecosystem = payload.Ecosystem,
+                UpdateType = payload.UpdateType,
+            };
         }
 
         return payload.UpdateType.ToLowerInvariant() switch
@@ -387,6 +407,14 @@ public sealed partial class DepReviewerAgent : IAgent
 
     private static bool IsOnStripList(string packageName, HashSet<string>? stripList) =>
         stripList?.Contains(packageName) == true;
+
+    private static bool IsOnDevToolingList(string packageName, HashSet<string>? devToolingList) =>
+        devToolingList?.Contains(packageName) == true;
+
+    private static bool IsDevToolingEcosystem(string ecosystem) =>
+        ecosystem.Equals("pip", StringComparison.OrdinalIgnoreCase) ||
+        ecosystem.Equals("nuget", StringComparison.OrdinalIgnoreCase) ||
+        ecosystem.Equals("npm", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsToolkitPackage(string packageName) =>
         string.Equals(packageName, "@chamber-19/desktop-toolkit", StringComparison.OrdinalIgnoreCase) ||
